@@ -1,3 +1,4 @@
+import 'package:bybit_card_tracker/data/models/transaction_model.dart';
 import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
 
 /// Abstract repository interface for the domain layer.
@@ -17,4 +18,10 @@ abstract class TransactionRepository {
 
   /// Clears all locally cached transactions.
   Future<void> clearCache();
+
+  /// Sets a category override for a single transaction.
+  Future<void> updateTransactionCategory(String txnId, String? category);
+
+  /// Returns the stored model for a transaction, if cached.
+  Future<TransactionModel?> getTransactionById(String txnId);
 }

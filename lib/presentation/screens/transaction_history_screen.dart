@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/transaction_provider.dart';
+import 'package:bybit_card_tracker/presentation/screens/transaction_detail_screen.dart';
 import 'package:bybit_card_tracker/presentation/widgets/transaction_tile.dart';
 
 class TransactionHistoryScreen extends ConsumerStatefulWidget {
@@ -85,6 +86,17 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
                 transaction: filtered[index],
                 showInUah: settings.showInUah,
                 exchangeRate: settings.exchangeRate,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TransactionDetailScreen(
+                        transaction: filtered[index],
+                        showInUah: settings.showInUah,
+                        exchangeRate: settings.exchangeRate,
+                      ),
+                    ),
+                  );
+                },
               );
             },
           );

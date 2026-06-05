@@ -1,5 +1,6 @@
 import 'package:bybit_card_tracker/data/datasources/bybit_remote_datasource.dart';
 import 'package:bybit_card_tracker/data/datasources/transaction_local_datasource.dart';
+import 'package:bybit_card_tracker/data/models/transaction_model.dart';
 import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
 import 'package:bybit_card_tracker/domain/repositories/transaction_repository.dart';
 
@@ -43,5 +44,15 @@ class TransactionRepositoryImpl implements TransactionRepository {
   @override
   Future<void> clearCache() async {
     await localDatasource.clearCache();
+  }
+
+  @override
+  Future<void> updateTransactionCategory(String txnId, String? category) async {
+    await localDatasource.updateCategory(txnId, category);
+  }
+
+  @override
+  Future<TransactionModel?> getTransactionById(String txnId) async {
+    return localDatasource.getById(txnId);
   }
 }

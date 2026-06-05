@@ -11,12 +11,14 @@ class TransactionTile extends StatelessWidget {
   final TransactionEntity transaction;
   final bool showInUah;
   final double exchangeRate;
+  final VoidCallback? onTap;
 
   const TransactionTile({
     super.key,
     required this.transaction,
     required this.showInUah,
     required this.exchangeRate,
+    this.onTap,
   });
 
   @override
@@ -32,7 +34,12 @@ class TransactionTile extends StatelessWidget {
     final dateStr = DateFormat('MMM d, yyyy').format(transaction.dateTime);
     final timeStr = DateFormat('HH:mm').format(transaction.dateTime);
 
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: AppTheme.cardColor,
@@ -127,6 +134,8 @@ class TransactionTile extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
         ),
       ),
     );

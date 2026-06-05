@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:bybit_card_tracker/data/datasources/bybit_remote_datasource.dart';
 import 'package:bybit_card_tracker/data/datasources/transaction_local_datasource.dart';
+import 'package:bybit_card_tracker/data/models/transaction_model.dart';
 import 'package:bybit_card_tracker/data/repositories/transaction_repository_impl.dart';
 import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
 import 'package:bybit_card_tracker/domain/repositories/transaction_repository.dart';
@@ -81,6 +82,19 @@ class TransactionNotifier extends AsyncNotifier<List<TransactionEntity>> {
     await repo.clearCache();
     state = const AsyncData([]);
   }
+
+  /// Reloads transactions from the local cache.
+  Future<void> reloadFromCache() async {
+    final repo = ref.read(transactionRepositoryProvider);
+    state = AsyncData(await repo.getCachedTransactions());
+  }
+
+  /// Overrides the category for a single transaction.
+  Future<void> setTransactionCategory(String txnId, String? category) async {
+    final repo = ref.read(transactionRepositoryProvider);
+    await repo.updateTransactionCategory(txnId, category);
+    await reloadFromCache();
+  }
 }
 
 // ── Filtered & enriched views ────────────────────────────────────────────
@@ -89,7 +103,7 @@ TransactionEntity _withResolvedCategory(
   TransactionEntity entity,
   List<MerchantCategoryRule> userRules,
 ) {
-  if (!entity.isCardPurchase) return entity;
+  if (!entity.isCardPurchase || entity.hasCustomCategory) return entity;
   return entity.copyWith(
     category: MerchantCategories.resolve(
       entity.merchantName,
@@ -132,4 +146,9 @@ final bonusTransactionsAsyncProvider =
   return ref.watch(transactionProvider).whenData(
         (list) => ref.watch(bonusTransactionsProvider),
       );
+});
+
+final transactionModelProvider =
+    FutureProvider.family<TransactionModel?, String>((ref, txnId) async {
+  return ref.read(transactionRepositoryProvider).getTransactionById(txnId);
 });

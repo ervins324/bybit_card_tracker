@@ -22,6 +22,8 @@ class TransactionEntity {
   final String? rewardSide;
   final String? rewardType;
   final String? rewardSubType;
+  final String? customCategory;
+  final Map<String, dynamic> rawApiData;
 
   const TransactionEntity({
     required this.id,
@@ -39,7 +41,12 @@ class TransactionEntity {
     this.rewardSide,
     this.rewardType,
     this.rewardSubType,
+    this.customCategory,
+    this.rawApiData = const {},
   });
+
+  bool get hasCustomCategory =>
+      customCategory != null && customCategory!.isNotEmpty;
 
   bool get isCardPurchase => recordType == TransactionRecordType.cardPurchase;
 
@@ -60,7 +67,7 @@ class TransactionEntity {
         _ => pointAmount.abs(),
       };
 
-  TransactionEntity copyWith({String? category}) {
+  TransactionEntity copyWith({String? category, String? customCategory}) {
     return TransactionEntity(
       id: id,
       merchantName: merchantName,
@@ -77,6 +84,8 @@ class TransactionEntity {
       rewardSide: rewardSide,
       rewardType: rewardType,
       rewardSubType: rewardSubType,
+      customCategory: customCategory ?? this.customCategory,
+      rawApiData: rawApiData,
     );
   }
 }

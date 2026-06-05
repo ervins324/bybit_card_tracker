@@ -26,6 +26,8 @@ class TransactionModel {
   final String? rewardSide;
   final String? rewardType;
   final String? rewardSubType;
+  final String? customCategory;
+  final Map<String, dynamic> rawApiData;
 
   const TransactionModel({
     required this.txnId,
@@ -48,6 +50,8 @@ class TransactionModel {
     this.rewardSide,
     this.rewardType,
     this.rewardSubType,
+    this.customCategory,
+    this.rawApiData = const {},
   });
 
   double get _spendAmount =>
@@ -116,6 +120,7 @@ class TransactionModel {
       rewardSide: rewardSide,
       rewardType: json['type']?.toString(),
       rewardSubType: json['subType']?.toString(),
+      rawApiData: Map<String, dynamic>.from(json),
     );
   }
 
@@ -141,6 +146,8 @@ class TransactionModel {
         'rewardSide': rewardSide,
         'rewardType': rewardType,
         'rewardSubType': rewardSubType,
+        'customCategory': customCategory,
+        'rawApiData': rawApiData,
       };
 
   factory TransactionModel.fromMap(Map<dynamic, dynamic> map) {
@@ -166,6 +173,88 @@ class TransactionModel {
       rewardSide: map['rewardSide']?.toString(),
       rewardType: map['rewardType']?.toString(),
       rewardSubType: map['rewardSubType']?.toString(),
+      customCategory: map['customCategory']?.toString(),
+      rawApiData: _parseRawApiData(map['rawApiData']),
+    );
+  }
+
+  static Map<String, dynamic> _parseRawApiData(dynamic value) {
+    if (value is! Map) return const {};
+    return value.map((key, val) => MapEntry(key.toString(), val));
+  }
+
+  /// All API fields for the detail view (raw response preferred).
+  Map<String, String> get apiFieldsForDisplay {
+    final fields = <String, String>{};
+
+    void add(String key, dynamic value) {
+      if (value == null) return;
+      final text = value.toString().trim();
+      if (text.isEmpty) return;
+      fields[key] = text;
+    }
+
+    if (rawApiData.isNotEmpty) {
+      for (final entry in rawApiData.entries) {
+        add(entry.key, entry.value);
+      }
+    } else {
+      add('transactionId', txnId);
+      add('outOrderId', orderNo);
+      add('merchName', merchName);
+      add('merchCategoryDesc', merchCategoryDesc);
+      add('basicAmount', basicAmount);
+      add('basicCurrency', basicCurrency);
+      add('transactionAmount', transactionAmount);
+      add('transactionCurrency', transactionCurrency);
+      add('createTime', txnCreate);
+      add('pan4', pan4);
+      add('pan6', pan6);
+      add('point', point);
+      add('side', rewardSide);
+      add('type', rewardType);
+      add('subType', rewardSubType);
+    }
+
+    return Map.fromEntries(
+      fields.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    );
+  }
+
+  TransactionEntity _toEntityBase({
+    required TransactionRecordType recordType,
+    required String merchantName,
+    required TransactionSide parsedSide,
+    required double signedAmount,
+    required TransactionStatus status,
+  }) {
+    final resolvedCategory = customCategory?.trim().isNotEmpty == true
+        ? customCategory!.trim()
+        : MerchantCategories.resolve(
+            merchName,
+            apiCategory: merchCategoryDesc,
+          );
+
+    return TransactionEntity(
+      id: txnId,
+      merchantName: merchantName,
+      category: resolvedCategory,
+      recordType: recordType,
+      amount: signedAmount,
+      currency: basicCurrency ?? 'USD',
+      dateTime: txnCreate != null
+          ? DateTime.fromMillisecondsSinceEpoch(txnCreate!)
+          : DateTime.now(),
+      status: status,
+      side: parsedSide,
+      declinedReason: declinedReason,
+      pan4: pan4 ?? '****',
+      pointAmount: point ?? 0,
+      rewardSide: rewardSide,
+      rewardType: rewardType,
+      rewardSubType: rewardSubType,
+      customCategory: customCategory,
+      rawApiData: rawApiData,
     );
   }
 
@@ -176,28 +265,17 @@ class TransactionModel {
         : TransactionRecordType.bonus;
 
     if (recordType == TransactionRecordType.bonus) {
-      return TransactionEntity(
-        id: txnId,
+      return _toEntityBase(
+        recordType: recordType,
         merchantName: BonusTypes.describe(
           rewardType: rewardType,
           rewardSubType: rewardSubType,
           rewardSide: rewardSide,
           merchName: merchName,
         ),
-        category: MerchantCategories.fallbackCategory,
-        recordType: recordType,
-        amount: 0,
-        currency: basicCurrency ?? 'USD',
-        dateTime: txnCreate != null
-            ? DateTime.fromMillisecondsSinceEpoch(txnCreate!)
-            : DateTime.now(),
+        parsedSide: TransactionSide.transaction,
+        signedAmount: 0,
         status: TransactionStatus.completed,
-        side: TransactionSide.transaction,
-        pan4: pan4 ?? '****',
-        pointAmount: point ?? 0,
-        rewardSide: rewardSide,
-        rewardType: rewardType,
-        rewardSubType: rewardSubType,
       );
     }
 
@@ -216,28 +294,13 @@ class TransactionModel {
           : -(rawAmount.abs()),
     };
 
-    return TransactionEntity(
-      id: txnId,
+    return _toEntityBase(
+      recordType: recordType,
       merchantName:
           (merchName?.isNotEmpty == true) ? merchName! : 'Unknown Merchant',
-      category: MerchantCategories.resolve(
-        merchName,
-        apiCategory: merchCategoryDesc,
-      ),
-      recordType: recordType,
-      amount: signedAmount,
-      currency: basicCurrency ?? 'USD',
-      dateTime: txnCreate != null
-          ? DateTime.fromMillisecondsSinceEpoch(txnCreate!)
-          : DateTime.now(),
+      parsedSide: parsedSide,
+      signedAmount: signedAmount,
       status: status,
-      side: parsedSide,
-      declinedReason: declinedReason,
-      pan4: pan4 ?? '****',
-      pointAmount: point ?? 0,
-      rewardSide: rewardSide,
-      rewardType: rewardType,
-      rewardSubType: rewardSubType,
     );
   }
 

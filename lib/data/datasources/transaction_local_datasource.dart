@@ -8,7 +8,6 @@ import 'package:bybit_card_tracker/data/models/transaction_model.dart';
 class TransactionLocalDatasource {
   static const String _boxName = 'transactions';
 
-  /// Opens (or returns the already-opened) Hive box.
   Future<Box<Map>> _openBox() async {
     if (Hive.isBoxOpen(_boxName)) {
       return Hive.box<Map>(_boxName);
@@ -16,25 +15,25 @@ class TransactionLocalDatasource {
     return Hive.openBox<Map>(_boxName);
   }
 
-  /// Saves a list of transactions, using `txnId` as the unique key
-  /// to prevent duplicates on re-sync.
+  /// Saves transactions, preserving user overrides such as [customCategory].
   Future<void> cacheTransactions(List<TransactionModel> transactions) async {
     final box = await _openBox();
-    final entries = <String, Map>{};
     for (final tx in transactions) {
-      entries[tx.txnId] = tx.toMap();
+      final existing = box.get(tx.txnId);
+      final map = tx.toMap();
+      if (existing != null && existing['customCategory'] != null) {
+        map['customCategory'] = existing['customCategory'];
+      }
+      await box.put(tx.txnId, map);
     }
-    await box.putAll(entries);
   }
 
-  /// Returns all cached transactions sorted by date (newest first).
   Future<List<TransactionModel>> getCachedTransactions() async {
     final box = await _openBox();
     final models = box.values
         .map((map) => TransactionModel.fromMap(map))
         .toList();
 
-    // Sort newest → oldest
     models.sort((a, b) {
       final aTime = a.txnCreate ?? 0;
       final bTime = b.txnCreate ?? 0;
@@ -44,7 +43,28 @@ class TransactionLocalDatasource {
     return models;
   }
 
-  /// Removes all cached transactions.
+  Future<TransactionModel?> getById(String txnId) async {
+    final box = await _openBox();
+    final map = box.get(txnId);
+    if (map == null) return null;
+    return TransactionModel.fromMap(map);
+  }
+
+  Future<void> updateCategory(String txnId, String? category) async {
+    final box = await _openBox();
+    final existing = box.get(txnId);
+    if (existing == null) return;
+
+    final updated = Map<dynamic, dynamic>.from(existing);
+    final trimmed = category?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      updated.remove('customCategory');
+    } else {
+      updated['customCategory'] = trimmed;
+    }
+    await box.put(txnId, updated);
+  }
+
   Future<void> clearCache() async {
     final box = await _openBox();
     await box.clear();
