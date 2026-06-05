@@ -1,0 +1,259 @@
+import 'package:bybit_card_tracker/core/constants/bonus_types.dart';
+import 'package:bybit_card_tracker/core/constants/merchant_categories.dart';
+import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
+
+/// Data model for Bybit card transactions and reward point records.
+///
+/// Handles JSON parsing from the API and Map serialization for Hive storage.
+class TransactionModel {
+  final String txnId;
+  final String? orderNo;
+  final String? merchName;
+  final String? merchCategoryDesc;
+  final String? side;
+  final String? tradeStatus;
+  final String? basicAmount;
+  final String? basicCurrency;
+  final String? transactionAmount;
+  final String? transactionCurrency;
+  final int? txnCreate;
+  final String? declinedReason;
+  final String? status;
+  final String? pan4;
+  final String? pan6;
+  final String? cardToken;
+  final int? point;
+  final String? rewardSide;
+  final String? rewardType;
+  final String? rewardSubType;
+
+  const TransactionModel({
+    required this.txnId,
+    this.orderNo,
+    this.merchName,
+    this.merchCategoryDesc,
+    this.side,
+    this.tradeStatus,
+    this.basicAmount,
+    this.basicCurrency,
+    this.transactionAmount,
+    this.transactionCurrency,
+    this.txnCreate,
+    this.declinedReason,
+    this.status,
+    this.pan4,
+    this.pan6,
+    this.cardToken,
+    this.point,
+    this.rewardSide,
+    this.rewardType,
+    this.rewardSubType,
+  });
+
+  double get _spendAmount =>
+      double.tryParse(basicAmount ?? transactionAmount ?? '') ?? 0.0;
+
+  bool get isCardPurchase => BonusTypes.isCardTransaction(
+        rewardType: rewardType,
+        rewardSubType: rewardSubType,
+        merchName: merchName,
+        spendAmount: _spendAmount,
+      );
+
+  bool get isRefundRecord => BonusTypes.isRefund(
+        rewardType: rewardType,
+        rewardSubType: rewardSubType,
+      );
+
+  // ── JSON parsing (API response) ─────────────────────────────────────
+  factory TransactionModel.fromJson(Map<String, dynamic> json) {
+    final isRewardRecord = json.containsKey('point') ||
+        (json.containsKey('transactionId') && !json.containsKey('txnId'));
+
+    final txnId = json['txnId']?.toString() ??
+        json['transactionId']?.toString() ??
+        json['bizTxnId']?.toString() ??
+        json['bizId']?.toString() ??
+        '';
+
+    final rewardSide = isRewardRecord ? json['side']?.toString() : null;
+
+    return TransactionModel(
+      txnId: txnId.isNotEmpty
+          ? txnId
+          : 'rp_${json['createTime'] ?? json['txnCreate']}_${json['merchName']}',
+      orderNo: json['orderNo']?.toString() ?? json['outOrderId']?.toString(),
+      merchName: json['merchName']?.toString(),
+      merchCategoryDesc: json['merchCategoryDesc']?.toString(),
+      side: isRewardRecord
+          ? (BonusTypes.isRefund(
+                  rewardType: json['type']?.toString(),
+                  rewardSubType: json['subType']?.toString(),
+                )
+              ? '5'
+              : '3')
+          : json['side']?.toString(),
+      tradeStatus:
+          json['tradeStatus']?.toString() ?? (isRewardRecord ? '1' : null),
+      basicAmount: json['basicAmount']?.toString() ??
+          json['transactionAmount']?.toString() ??
+          _firstNonZeroAmount(
+            json['payFiatAmount'],
+            json['transactionCurrencyAmount'],
+          ),
+      basicCurrency: json['basicCurrency']?.toString(),
+      transactionAmount: json['transactionAmount']?.toString(),
+      transactionCurrency: json['transactionCurrency']?.toString(),
+      txnCreate: _parseInt(
+        json['txnCreate'] ?? json['createTime'] ?? json['transactionDate'],
+      ),
+      declinedReason: json['declinedReason']?.toString(),
+      status: json['status']?.toString(),
+      pan4: json['pan4']?.toString(),
+      pan6: json['pan6']?.toString(),
+      cardToken: json['cardToken']?.toString(),
+      point: _parseInt(json['point']),
+      rewardSide: rewardSide,
+      rewardType: json['type']?.toString(),
+      rewardSubType: json['subType']?.toString(),
+    );
+  }
+
+  // ── Hive storage (Map serialization) ────────────────────────────────
+  Map<String, dynamic> toMap() => {
+        'txnId': txnId,
+        'orderNo': orderNo,
+        'merchName': merchName,
+        'merchCategoryDesc': merchCategoryDesc,
+        'side': side,
+        'tradeStatus': tradeStatus,
+        'basicAmount': basicAmount,
+        'basicCurrency': basicCurrency,
+        'transactionAmount': transactionAmount,
+        'transactionCurrency': transactionCurrency,
+        'txnCreate': txnCreate,
+        'declinedReason': declinedReason,
+        'status': status,
+        'pan4': pan4,
+        'pan6': pan6,
+        'cardToken': cardToken,
+        'point': point,
+        'rewardSide': rewardSide,
+        'rewardType': rewardType,
+        'rewardSubType': rewardSubType,
+      };
+
+  factory TransactionModel.fromMap(Map<dynamic, dynamic> map) {
+    return TransactionModel(
+      txnId: map['txnId']?.toString() ?? '',
+      orderNo: map['orderNo']?.toString(),
+      merchName: map['merchName']?.toString(),
+      merchCategoryDesc: map['merchCategoryDesc']?.toString(),
+      side: map['side']?.toString(),
+      tradeStatus: map['tradeStatus']?.toString(),
+      basicAmount: map['basicAmount']?.toString() ??
+          map['transactionAmount']?.toString(),
+      basicCurrency: map['basicCurrency']?.toString(),
+      transactionAmount: map['transactionAmount']?.toString(),
+      transactionCurrency: map['transactionCurrency']?.toString(),
+      txnCreate: _parseInt(map['txnCreate'] ?? map['createTime']),
+      declinedReason: map['declinedReason']?.toString(),
+      status: map['status']?.toString(),
+      pan4: map['pan4']?.toString(),
+      pan6: map['pan6']?.toString(),
+      cardToken: map['cardToken']?.toString(),
+      point: _parseInt(map['point']),
+      rewardSide: map['rewardSide']?.toString(),
+      rewardType: map['rewardType']?.toString(),
+      rewardSubType: map['rewardSubType']?.toString(),
+    );
+  }
+
+  // ── Domain mapping ──────────────────────────────────────────────────
+  TransactionEntity toEntity() {
+    final recordType = isCardPurchase
+        ? TransactionRecordType.cardPurchase
+        : TransactionRecordType.bonus;
+
+    if (recordType == TransactionRecordType.bonus) {
+      return TransactionEntity(
+        id: txnId,
+        merchantName: BonusTypes.describe(
+          rewardType: rewardType,
+          rewardSubType: rewardSubType,
+          rewardSide: rewardSide,
+          merchName: merchName,
+        ),
+        category: MerchantCategories.fallbackCategory,
+        recordType: recordType,
+        amount: 0,
+        currency: basicCurrency ?? 'USD',
+        dateTime: txnCreate != null
+            ? DateTime.fromMillisecondsSinceEpoch(txnCreate!)
+            : DateTime.now(),
+        status: TransactionStatus.completed,
+        side: TransactionSide.transaction,
+        pan4: pan4 ?? '****',
+        pointAmount: point ?? 0,
+        rewardSide: rewardSide,
+        rewardType: rewardType,
+        rewardSubType: rewardSubType,
+      );
+    }
+
+    final parsedSide = isRefundRecord
+        ? TransactionSide.refund
+        : TransactionSide.fromApi(side);
+    final rawAmount = _spendAmount;
+    final status = tradeStatus != null
+        ? TransactionStatus.fromApi(tradeStatus)
+        : TransactionStatus.completed;
+
+    final signedAmount = switch (parsedSide) {
+      TransactionSide.refund => rawAmount.abs(),
+      _ => status == TransactionStatus.reversal
+          ? rawAmount.abs()
+          : -(rawAmount.abs()),
+    };
+
+    return TransactionEntity(
+      id: txnId,
+      merchantName:
+          (merchName?.isNotEmpty == true) ? merchName! : 'Unknown Merchant',
+      category: MerchantCategories.resolve(
+        merchName,
+        apiCategory: merchCategoryDesc,
+      ),
+      recordType: recordType,
+      amount: signedAmount,
+      currency: basicCurrency ?? 'USD',
+      dateTime: txnCreate != null
+          ? DateTime.fromMillisecondsSinceEpoch(txnCreate!)
+          : DateTime.now(),
+      status: status,
+      side: parsedSide,
+      declinedReason: declinedReason,
+      pan4: pan4 ?? '****',
+      pointAmount: point ?? 0,
+      rewardSide: rewardSide,
+      rewardType: rewardType,
+      rewardSubType: rewardSubType,
+    );
+  }
+
+  static String? _firstNonZeroAmount(dynamic first, dynamic second) {
+    for (final value in [first, second]) {
+      final text = value?.toString();
+      if (text == null || text.isEmpty) continue;
+      final parsed = double.tryParse(text);
+      if (parsed != null && parsed != 0) return text;
+    }
+    return null;
+  }
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
+  }
+}
