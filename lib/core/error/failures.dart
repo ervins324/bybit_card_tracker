@@ -34,3 +34,10 @@ class GeoRestrictionFailure extends ServerFailure {
           statusCode: 403,
         );
 }
+
+/// Device cannot reach the API (DNS, offline, timeout).
+class NetworkFailure extends Failure {
+  final String? host;
+
+  const NetworkFailure(super.message, {this.host});
+}

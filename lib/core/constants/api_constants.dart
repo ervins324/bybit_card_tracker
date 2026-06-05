@@ -4,10 +4,12 @@ class ApiConstants {
 
   // ── Base URLs ──────────────────────────────────────────────────────────
   static const String mainnetBaseUrl = 'https://api.bybit.com';
+  static const String bytickMirrorUrl = 'https://api.bytick.com';
 
   /// Regional mainnet endpoints the user can choose from.
   static const Map<String, String> regionalEndpoints = {
     'Global (Default)': mainnetBaseUrl,
+    'Global Mirror (bytick)': bytickMirrorUrl,
     'Netherlands': 'https://api.bybit.nl',
     'Turkey': 'https://api.bybit.tr',
     'Kazakhstan': 'https://api.bybit.kz',

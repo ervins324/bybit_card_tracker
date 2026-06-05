@@ -83,4 +83,17 @@ class CredentialsNotifier extends AsyncNotifier<Credentials?> {
     await _storage.delete(key: _kBaseUrl);
     state = const AsyncData(null);
   }
+
+  /// Updates only the API base URL (e.g. switch regional endpoint on mobile).
+  Future<void> updateBaseUrl(String baseUrl) async {
+    final current = state.valueOrNull ?? await _load();
+    if (current == null) return;
+
+    await _storage.write(key: _kBaseUrl, value: baseUrl);
+    state = AsyncData(Credentials(
+      apiKey: current.apiKey,
+      apiSecret: current.apiSecret,
+      baseUrl: baseUrl,
+    ));
+  }
 }

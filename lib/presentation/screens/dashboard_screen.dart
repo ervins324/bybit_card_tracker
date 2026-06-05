@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:bybit_card_tracker/core/constants/api_constants.dart';
+import 'package:bybit_card_tracker/core/error/failures.dart';
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
+import 'package:bybit_card_tracker/core/utils/network_error_messages.dart';
 import 'package:bybit_card_tracker/presentation/screens/category_rules_screen.dart';
 import 'package:bybit_card_tracker/presentation/providers/credentials_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
@@ -60,6 +63,14 @@ class DashboardScreen extends ConsumerWidget {
             color: AppTheme.cardColor,
             onSelected: (value) => _handleMenu(context, ref, value),
             itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'endpoint',
+                child: ListTile(
+                  leading: Icon(Icons.dns_rounded),
+                  title: Text('API Endpoint'),
+                  dense: true,
+                ),
+              ),
               const PopupMenuItem(
                 value: 'categories',
                 child: ListTile(
@@ -162,6 +173,8 @@ class DashboardScreen extends ConsumerWidget {
 
   void _handleMenu(BuildContext context, WidgetRef ref, String value) {
     switch (value) {
+      case 'endpoint':
+        _showEndpointDialog(context, ref);
       case 'categories':
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const CategoryRulesScreen()),
@@ -213,6 +226,72 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
+
+  void _showEndpointDialog(BuildContext context, WidgetRef ref) {
+    final credentials = ref.read(credentialsProvider).valueOrNull;
+    var selected = credentials?.baseUrl ?? ApiConstants.mainnetBaseUrl;
+    final endpoints = Map<String, String>.from(ApiConstants.regionalEndpoints);
+    if (!endpoints.containsValue(selected)) {
+      endpoints['Current'] = selected;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.cardColor,
+          title: const Text('API Endpoint'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'If sync fails on mobile, try a regional server or the bytick mirror.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: selected,
+                decoration: const InputDecoration(labelText: 'Server'),
+                dropdownColor: AppTheme.cardColor,
+                items: endpoints.entries
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e.value,
+                        child: Text(e.key, style: const TextStyle(fontSize: 14)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => selected = value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await ref
+                    .read(credentialsProvider.notifier)
+                    .updateBaseUrl(selected);
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Endpoint updated. Tap sync.')),
+                  );
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ErrorView extends StatelessWidget {
@@ -224,23 +303,28 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final message = switch (error) {
+      Failure(:final message) => message,
+      _ => NetworkErrorMessages.format(error),
+    };
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline_rounded, size: 56, color: AppTheme.red),
+            Icon(Icons.wifi_off_rounded, size: 56, color: AppTheme.red),
             const SizedBox(height: 16),
             Text(
-              'Something went wrong',
+              'Connection problem',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              error.toString(),
+              message,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall,
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(

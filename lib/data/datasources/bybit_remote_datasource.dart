@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:bybit_card_tracker/core/constants/api_constants.dart';
 import 'package:bybit_card_tracker/core/error/failures.dart';
+import 'package:bybit_card_tracker/core/utils/network_error_messages.dart';
 import 'package:bybit_card_tracker/data/models/api_response_model.dart';
 import 'package:bybit_card_tracker/data/models/transaction_model.dart';
 
@@ -79,7 +80,11 @@ class BybitRemoteDataSourceImpl implements BybitRemoteDataSource {
             body: jsonPayload,
           );
         } catch (e) {
-          throw ServerFailure('Network error: $e');
+          final host = uri.host;
+          throw NetworkFailure(
+            NetworkErrorMessages.format(e, host: host),
+            host: host,
+          );
         }
 
         if (response.statusCode == 403) {

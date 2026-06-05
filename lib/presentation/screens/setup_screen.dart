@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:bybit_card_tracker/core/constants/api_constants.dart';
+import 'package:bybit_card_tracker/core/error/failures.dart';
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
+import 'package:bybit_card_tracker/core/utils/network_error_messages.dart';
 import 'package:bybit_card_tracker/presentation/providers/credentials_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/transaction_provider.dart';
 import 'package:bybit_card_tracker/presentation/screens/home_screen.dart';
@@ -74,10 +76,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen>
       );
     } catch (e) {
       if (!mounted) return;
+      final message = e is Failure
+          ? e.message
+          : NetworkErrorMessages.format(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Connection failed: $e'),
+          content: Text(message),
           backgroundColor: AppTheme.red,
+          duration: const Duration(seconds: 6),
         ),
       );
     } finally {
@@ -274,8 +280,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen>
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Your API keys are encrypted and stored only on this device. '
-                              'Ensure your IP is not in the US or Mainland China to avoid 403 errors.',
+                              'Your API keys stay on this device only. '
+                              'On mobile, if sync fails, try Menu → API Endpoint and pick a regional server. '
+                              'Avoid US / Mainland China IP (403).',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 height: 1.5,
                               ),
