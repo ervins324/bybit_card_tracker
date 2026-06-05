@@ -56,10 +56,11 @@ class _CategoryRulesScreenState extends ConsumerState<CategoryRulesScreen> {
             runSpacing: 8,
             children: settings.allCategories.map((name) {
               final isCustom = settings.customCategories.contains(name);
+              final isPredefined = MerchantCategories.predefinedCategories.contains(name);
               return InputChip(
                 label: Text(name),
-                deleteIcon: isCustom ? const Icon(Icons.close, size: 16) : null,
-                onDeleted: isCustom
+                deleteIcon: (isCustom && !isPredefined) ? const Icon(Icons.close, size: 16) : null,
+                onDeleted: (isCustom && !isPredefined)
                     ? () {
                         final index = settings.customCategories.indexOf(name);
                         if (index >= 0) {
@@ -69,7 +70,7 @@ class _CategoryRulesScreenState extends ConsumerState<CategoryRulesScreen> {
                         }
                       }
                     : null,
-                onPressed: isCustom
+                onPressed: (isCustom && !isPredefined)
                     ? () => _showRenameCategoryDialog(context, name)
                     : null,
               );

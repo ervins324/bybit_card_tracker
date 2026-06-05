@@ -20,7 +20,19 @@ class BonusHistoryScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Bonuses')),
       body: txnState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Error: $error')),
+        error: (error, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.red),
+                const SizedBox(height: 16),
+                Text('Error: $error', textAlign: TextAlign.center),
+              ],
+            ),
+          ),
+        ),
         data: (_) {
           if (bonuses.isEmpty) {
             return Center(
@@ -51,33 +63,38 @@ class BonusHistoryScreen extends ConsumerWidget {
             );
           }
 
-          return ListView(
-            padding: const EdgeInsets.only(top: 8, bottom: 24),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _SummaryChip(
-                        label: 'Earned',
-                        value: '+$earned pts',
-                        color: AppTheme.green,
+          return RefreshIndicator(
+            color: AppTheme.gold,
+            onRefresh: () => ref.read(transactionProvider.notifier).sync(),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(top: 8, bottom: 24),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryChip(
+                          label: 'Earned',
+                          value: '+$earned pts',
+                          color: AppTheme.green,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _SummaryChip(
-                        label: 'Spent',
-                        value: '-$spent pts',
-                        color: AppTheme.red,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _SummaryChip(
+                          label: 'Spent',
+                          value: '-$spent pts',
+                          color: AppTheme.red,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              ...bonuses.map((tx) => BonusTile(transaction: tx)),
-            ],
+                ...bonuses.map((tx) => BonusTile(transaction: tx)),
+              ],
+            ),
           );
         },
       ),

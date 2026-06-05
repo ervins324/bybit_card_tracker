@@ -138,6 +138,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void removeCustomCategoryAt(int index) {
     if (index >= state.customCategories.length) return;
     final removed = state.customCategories[index];
+    
+    // Prevent deletion of predefined categories
+    if (MerchantCategories.predefinedCategories.contains(removed)) {
+      return;
+    }
+    
     final updatedCategories = [...state.customCategories]..removeAt(index);
     final updatedRules = state.categoryRules
         .where((rule) => rule.category != removed)

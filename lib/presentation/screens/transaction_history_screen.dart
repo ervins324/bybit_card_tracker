@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bybit_card_tracker/core/theme/app_theme.dart';
 import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/transaction_provider.dart';
 import 'package:bybit_card_tracker/presentation/screens/transaction_detail_screen.dart';
@@ -57,7 +58,19 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
       ),
       body: txnState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Error: $error')),
+        error: (error, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.red),
+                const SizedBox(height: 16),
+                Text('Error: $error', textAlign: TextAlign.center),
+              ],
+            ),
+          ),
+        ),
         data: (transactions) {
           final filtered = transactions.where((tx) {
             final name = tx.merchantName.toLowerCase();
@@ -78,27 +91,32 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.only(top: 8, bottom: 24),
-            itemCount: filtered.length,
-            itemBuilder: (context, index) {
-              return TransactionTile(
-                transaction: filtered[index],
-                showInUah: settings.showInUah,
-                exchangeRate: settings.exchangeRate,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => TransactionDetailScreen(
-                        transaction: filtered[index],
-                        showInUah: settings.showInUah,
-                        exchangeRate: settings.exchangeRate,
+          return RefreshIndicator(
+            color: AppTheme.gold,
+            onRefresh: () => ref.read(transactionProvider.notifier).sync(),
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(top: 8, bottom: 24),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                return TransactionTile(
+                  transaction: filtered[index],
+                  showInUah: settings.showInUah,
+                  exchangeRate: settings.exchangeRate,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TransactionDetailScreen(
+                          transaction: filtered[index],
+                          showInUah: settings.showInUah,
+                          exchangeRate: settings.exchangeRate,
+                        ),
                       ),
-                    ),
-                  );
-                },
-              );
-            },
+                    );
+                  },
+                );
+              },
+            ),
           );
         },
       ),
