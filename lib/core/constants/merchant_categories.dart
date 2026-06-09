@@ -6,7 +6,7 @@ class MerchantCategoryRule {
   final String category;
   final List<String> keywords;
 
-  const MerchantCategoryRule({
+  const MerchantCategoryRule(
     required this.category,
     required this.keywords,
   });

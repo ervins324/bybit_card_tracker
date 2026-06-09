@@ -9,6 +9,18 @@ import 'package:bybit_card_tracker/data/models/api_response_model.dart';
 import 'package:bybit_card_tracker/data/models/transaction_model.dart';
 
 abstract class BybitRemoteDataSource {
+  Future<List<TransactionModel>> getAssetRecords({
+    required String apiKey,
+    required String apiSecret,
+    required String baseUrl,
+  });
+
+  Future<List<TransactionModel>> getRewardPointRecords({
+    required String apiKey,
+    required String apiSecret,
+    required String baseUrl,
+  });
+
   Future<List<TransactionModel>> fetchAllTransactions({
     required String apiKey,
     required String apiSecret,
@@ -22,21 +34,104 @@ class BybitRemoteDataSourceImpl implements BybitRemoteDataSource {
   const BybitRemoteDataSourceImpl({required this.client});
 
   @override
+  Future<List<TransactionModel>> getAssetRecords({
+    required String apiKey,
+    required String apiSecret,
+    required String baseUrl,
+  }) async {
+    return _fetchPagesPagination(
+      endpoint: ApiConstants.assetTransactionRecords,
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      baseUrl: baseUrl,
+      extraParams: {'type': 'SIDE_QUERY_AUTH', 'statusCode': '1'},
+    );
+  }
+
+  @override
+  Future<List<TransactionModel>> getRewardPointRecords({
+    required String apiKey,
+    required String apiSecret,
+    required String baseUrl,
+  }) async {
+    return _fetchPagesPagination(
+      endpoint: ApiConstants.rewardPointRecords,
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      baseUrl: baseUrl,
+    );
+  }
+
+  @override
   Future<List<TransactionModel>> fetchAllTransactions({
     required String apiKey,
     required String apiSecret,
     required String baseUrl,
   }) async {
+    final assetRecords = await getAssetRecords(
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      baseUrl: baseUrl,
+    );
+
+    await Future.delayed(const Duration(seconds: 1));
+
+    final rewardRecords = await getRewardPointRecords(
+      apiKey: apiKey,
+      apiSecret: apiSecret,
+      baseUrl: baseUrl,
+    );
+
+    final Map<String, TransactionModel> mergedTransactions = {};
+
+    for (final record in rewardRecords) {
+      mergedTransactions[record.txnId] = record;
+    }
+
+    for (final record in assetRecords) {
+      final cleanMerchant = (record.merchName ?? '').trim().toLowerCase();
+      final amountKey = record.basicAmount ?? record.transactionAmount ?? '0';
+      final rawTime = record.txnCreate ?? 0;
+      final timeMinutes = rawTime ~/ 60000;
+
+      final uniqueKey = '${timeMinutes}_${amountKey}_$cleanMerchant';
+
+      if (mergedTransactions.containsKey(uniqueKey)) {
+        final existing = mergedTransactions[uniqueKey]!;
+        final existingMcc = existing.merchCategoryDesc ?? '';
+        final newMcc = record.merchCategoryDesc ?? '';
+
+        if (existingMcc.isEmpty && newMcc.isNotEmpty) {
+          mergedTransactions[uniqueKey] = record;
+        }
+      } else {
+        if (!mergedTransactions.containsKey(record.txnId)) {
+          mergedTransactions[uniqueKey] = record;
+        }
+      }
+    }
+
+    return mergedTransactions.values.toList();
+  }
+
+  Future<List<TransactionModel>> _fetchPagesPagination({
+    required String endpoint,
+    required String apiKey,
+    required String apiSecret,
+    required String baseUrl,
+    Map<String, dynamic>? extraParams,
+  }) async {
     final allTransactions = <TransactionModel>[];
     const pageSize = ApiConstants.defaultPageSize;
 
-    // First request to get total page count
     final firstPageJson = await _fetchSinglePage(
+      endpoint: endpoint,
       page: 1,
       pageSize: pageSize,
       apiKey: apiKey,
       apiSecret: apiSecret,
       baseUrl: baseUrl,
+      extraParams: extraParams,
     );
 
     final apiResponse = ApiResponseModel.fromJson(firstPageJson);
@@ -46,61 +141,54 @@ class BybitRemoteDataSourceImpl implements BybitRemoteDataSource {
 
     if (dataList.isNotEmpty) {
       allTransactions.addAll(
-        dataList.map((e) => TransactionModel.fromJson(e as Map<String, dynamic>)),
+        dataList.map(
+          (e) => TransactionModel.fromJson(e as Map<String, dynamic>),
+        ),
       );
     }
+
+    await Future.delayed(const Duration(seconds: 1));
 
     if (dataList.isEmpty || totalCount <= pageSize) {
       return allTransactions;
     }
 
-    // Calculate remaining pages
     final totalPages = (totalCount + pageSize - 1) ~/ pageSize;
-    final remainingPages = List.generate(
-      totalPages - 1,
-      (index) => index + 2,
-    );
+    final remainingPages = List.generate(totalPages - 1, (index) => index + 2);
 
-    if (remainingPages.isEmpty) {
-      return allTransactions;
-    }
+    for (final page in remainingPages) {
+      final json = await _fetchSinglePage(
+        endpoint: endpoint,
+        page: page,
+        pageSize: pageSize,
+        apiKey: apiKey,
+        apiSecret: apiSecret,
+        baseUrl: baseUrl,
+        extraParams: extraParams,
+      );
 
-    // Fetch all remaining pages in parallel (max 3 concurrent requests to respect rate limits)
-    final futures = remainingPages.map((page) => _fetchSinglePage(
-          page: page,
-          pageSize: pageSize,
-          apiKey: apiKey,
-          apiSecret: apiSecret,
-          baseUrl: baseUrl,
-        ));
-
-    // Use batching to avoid overwhelming rate limits: fetch 3 pages at a time
-    final batchSize = 3;
-    for (int i = 0; i < futures.length; i += batchSize) {
-      final batch = futures.skip(i).take(batchSize);
-      final batchResults = await Future.wait(batch);
-
-      for (final json in batchResults) {
-        final response = ApiResponseModel.fromJson(json);
-        final data = (response.result['data'] as List?) ?? [];
-        if (data.isNotEmpty) {
-          allTransactions.addAll(
-            data.map((e) => TransactionModel.fromJson(e as Map<String, dynamic>)),
-          );
-        }
+      final response = ApiResponseModel.fromJson(json);
+      final data = (response.result['data'] as List?) ?? [];
+      if (data.isNotEmpty) {
+        allTransactions.addAll(
+          data.map((e) => TransactionModel.fromJson(e as Map<String, dynamic>)),
+        );
       }
+
+      await Future.delayed(const Duration(seconds: 1));
     }
 
     return allTransactions;
   }
 
-  /// Fetches a single page with rate limit retry logic.
   Future<Map<String, dynamic>> _fetchSinglePage({
+    required String endpoint,
     required int page,
     required int pageSize,
     required String apiKey,
     required String apiSecret,
     required String baseUrl,
+    Map<String, dynamic>? extraParams,
   }) async {
     var rateLimitRetries = 0;
     const maxRetries = 3;
@@ -109,6 +197,7 @@ class BybitRemoteDataSourceImpl implements BybitRemoteDataSource {
       final requestBody = <String, dynamic>{
         'pageSize': pageSize,
         'pageNo': page,
+        if (extraParams != null) ...extraParams,
       };
 
       final String jsonPayload = jsonEncode(requestBody);
@@ -128,19 +217,15 @@ class BybitRemoteDataSourceImpl implements BybitRemoteDataSource {
         'X-BAPI-SIGN': signature.toString(),
         'X-BAPI-RECV-WINDOW': recvWindow,
         'Content-Type': 'application/json',
-        'User-Agent': 'bybit-skill/1.4.2',
-        'X-Referer': 'bybit-skill',
+        'User-Agent': 'bybit-card-tracker/1.0.0',
+        'X-Referer': 'bybit-card-tracker',
       };
 
-      final uri = Uri.parse('$baseUrl${ApiConstants.transactionRecords}');
+      final uri = Uri.parse('$baseUrl$endpoint');
 
       final http.Response response;
       try {
-        response = await client.post(
-          uri,
-          headers: headers,
-          body: jsonPayload,
-        );
+        response = await client.post(uri, headers: headers, body: jsonPayload);
       } catch (e) {
         final host = uri.host;
         throw NetworkFailure(
@@ -156,13 +241,11 @@ class BybitRemoteDataSourceImpl implements BybitRemoteDataSource {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       final apiResponse = ApiResponseModel.fromJson(json);
 
-      // Handle rate limiting with optimized retry
       if (apiResponse.retCode == 10006 ||
           apiResponse.retCode == 10014 ||
           response.statusCode == 429) {
         if (rateLimitRetries < maxRetries) {
           rateLimitRetries++;
-          // Fixed 500ms delay per retry instead of exponential
           await Future.delayed(Duration(milliseconds: 500 * rateLimitRetries));
           continue;
         }
