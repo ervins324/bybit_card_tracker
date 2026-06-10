@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:bybit_card_tracker/core/constants/merchant_categories.dart';
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
 import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
 
+/// Manages custom categories.
+///
+/// Keyword-based rules are no longer used — categories are resolved from MCC codes.
+/// Manual overrides per transaction are still available in the transaction detail screen.
 class CategoryRulesScreen extends ConsumerStatefulWidget {
   const CategoryRulesScreen({super.key});
 
@@ -30,27 +33,21 @@ class _CategoryRulesScreenState extends ConsumerState<CategoryRulesScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Categories')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showRuleDialog(context),
+        onPressed: () => _showAddCategoryDialog(context),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Add rule'),
+        label: const Text('New category'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
         children: [
           Text(
-            'Assign categories automatically by matching keywords in merchant names.',
+            'Categories are assigned automatically from the MCC code on each transaction. '
+            'You can add custom categories and assign them manually per transaction.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 24),
-          _SectionHeader(
-            title: 'Your categories',
-            action: TextButton.icon(
-              onPressed: () => _showAddCategoryDialog(context),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('New category'),
-            ),
-          ),
-          const SizedBox(height: 8),
+          Text('All categories', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -75,42 +72,13 @@ class _CategoryRulesScreenState extends ConsumerState<CategoryRulesScreen> {
               );
             }).toList(),
           ),
-          const SizedBox(height: 24),
-          const _SectionHeader(title: 'Built-in rules'),
-          const SizedBox(height: 8),
-          ...MerchantCategories.builtInRules.map(
-            (rule) => _RuleCard(
-              category: rule.category,
-              keywords: rule.keywords.join(', '),
-              isBuiltIn: true,
+          const SizedBox(height: 16),
+          Text(
+            'Tap a custom category to rename it. Built-in categories cannot be edited.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
             ),
           ),
-          const SizedBox(height: 24),
-          const _SectionHeader(title: 'Your rules'),
-          const SizedBox(height: 8),
-          if (settings.categoryRules.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                'No custom rules yet. Tap "Add rule" to create one.',
-                style: theme.textTheme.bodySmall,
-              ),
-            )
-          else
-            ...settings.categoryRules.asMap().entries.map(
-                  (entry) => _RuleCard(
-                    category: entry.value.category,
-                    keywords: entry.value.keywords.join(', '),
-                    onEdit: () => _showRuleDialog(
-                      context,
-                      index: entry.key,
-                      existing: entry.value,
-                    ),
-                    onDelete: () => ref
-                        .read(settingsProvider.notifier)
-                        .removeCategoryRuleAt(entry.key),
-                  ),
-                ),
         ],
       ),
     );
@@ -174,216 +142,13 @@ class _CategoryRulesScreenState extends ConsumerState<CategoryRulesScreen> {
             onPressed: () {
               final name = controller.text.trim();
               if (name.isEmpty || index < 0) return;
-              ref.read(settingsProvider.notifier).renameCustomCategory(
-                    index,
-                    name,
-                  );
+              ref
+                  .read(settingsProvider.notifier)
+                  .renameCustomCategory(index, name);
               Navigator.pop(ctx);
             },
             child: const Text('Save'),
           ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showRuleDialog(
-    BuildContext context, {
-    int? index,
-    MerchantCategoryRule? existing,
-  }) async {
-    final settings = ref.read(settingsProvider);
-    final isEditing = existing != null && index != null;
-
-    var category = existing?.category ?? settings.allCategories.first;
-    final keywordsController = TextEditingController(
-      text: existing?.keywords.join(', ') ?? '',
-    );
-    final customCategoryController = TextEditingController();
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppTheme.cardColor,
-          title: Text(isEditing ? 'Edit rule' : 'Add rule'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: category,
-                  decoration: const InputDecoration(labelText: 'Category'),
-                  items: settings.allCategories
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() => category = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: customCategoryController,
-                  decoration: InputDecoration(
-                    labelText: 'Or create new category',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.add_rounded),
-                      onPressed: () {
-                        final name = customCategoryController.text.trim();
-                        if (name.isEmpty) return;
-                        ref.read(settingsProvider.notifier).addCustomCategory(
-                              name,
-                            );
-                        setDialogState(() => category = name);
-                        customCategoryController.clear();
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: keywordsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Merchant keywords',
-                    hintText: 'varus, atb, silpo',
-                    helperText: 'Comma-separated. Case-insensitive.',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final keywords = keywordsController.text
-                    .split(',')
-                    .map((k) => k.trim().toLowerCase())
-                    .where((k) => k.isNotEmpty)
-                    .toList();
-
-                if (keywords.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Enter at least one keyword.'),
-                    ),
-                  );
-                  return;
-                }
-
-                final rule = MerchantCategoryRule(
-                  category: category,
-                  keywords: keywords,
-                );
-
-                final notifier = ref.read(settingsProvider.notifier);
-                if (isEditing) {
-                  notifier.updateCategoryRuleAt(index, rule);
-                } else {
-                  notifier.addCategoryRule(rule);
-                }
-
-                Navigator.pop(ctx);
-              },
-              child: Text(isEditing ? 'Save' : 'Add'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    keywordsController.dispose();
-    customCategoryController.dispose();
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final Widget? action;
-
-  const _SectionHeader({required this.title, this.action});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.titleSmall),
-        ),
-        ?action,
-      ],
-    );
-  }
-}
-
-class _RuleCard extends StatelessWidget {
-  final String category;
-  final String keywords;
-  final bool isBuiltIn;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-
-  const _RuleCard({
-    required this.category,
-    required this.keywords,
-    this.isBuiltIn = false,
-    this.onEdit,
-    this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.cardBorderColor, width: 0.5),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  category,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(keywords, style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ),
-          ),
-          if (isBuiltIn)
-            Text(
-              'Built-in',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.gold,
-                  ),
-            )
-          else ...[
-            if (onEdit != null)
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                color: AppTheme.gold,
-                onPressed: onEdit,
-              ),
-            if (onDelete != null)
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded),
-                color: AppTheme.red,
-                onPressed: onDelete,
-              ),
-          ],
         ],
       ),
     );

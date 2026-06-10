@@ -10,6 +10,7 @@ class TransactionModel {
   final String? orderNo;
   final String? merchName;
   final String? merchCategoryDesc;
+  final String? mccCode;
   final String? side;
   final String? tradeStatus;
   final String? basicAmount;
@@ -34,6 +35,7 @@ class TransactionModel {
     this.orderNo,
     this.merchName,
     this.merchCategoryDesc,
+    this.mccCode,
     this.side,
     this.tradeStatus,
     this.basicAmount,
@@ -58,23 +60,23 @@ class TransactionModel {
       double.tryParse(basicAmount ?? transactionAmount ?? '') ?? 0.0;
 
   bool get isCardPurchase => BonusTypes.isCardTransaction(
-        rewardType: rewardType,
-        rewardSubType: rewardSubType,
-        merchName: merchName,
-        spendAmount: _spendAmount,
-      );
+    rewardType: rewardType,
+    rewardSubType: rewardSubType,
+    merchName: merchName,
+    spendAmount: _spendAmount,
+  );
 
-  bool get isRefundRecord => BonusTypes.isRefund(
-        rewardType: rewardType,
-        rewardSubType: rewardSubType,
-      );
+  bool get isRefundRecord =>
+      BonusTypes.isRefund(rewardType: rewardType, rewardSubType: rewardSubType);
 
   // ── JSON parsing (API response) ─────────────────────────────────────
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
-    final isRewardRecord = json.containsKey('point') ||
+    final isRewardRecord =
+        json.containsKey('point') ||
         (json.containsKey('transactionId') && !json.containsKey('txnId'));
 
-    final txnId = json['txnId']?.toString() ??
+    final txnId =
+        json['txnId']?.toString() ??
         json['transactionId']?.toString() ??
         json['bizTxnId']?.toString() ??
         json['bizId']?.toString() ??
@@ -89,17 +91,19 @@ class TransactionModel {
       orderNo: json['orderNo']?.toString() ?? json['outOrderId']?.toString(),
       merchName: json['merchName']?.toString(),
       merchCategoryDesc: json['merchCategoryDesc']?.toString(),
+      mccCode: json['mccCode']?.toString(),
       side: isRewardRecord
           ? (BonusTypes.isRefund(
                   rewardType: json['type']?.toString(),
                   rewardSubType: json['subType']?.toString(),
                 )
-              ? '5'
-              : '3')
+                ? '5'
+                : '3')
           : json['side']?.toString(),
       tradeStatus:
           json['tradeStatus']?.toString() ?? (isRewardRecord ? '1' : null),
-      basicAmount: json['basicAmount']?.toString() ??
+      basicAmount:
+          json['basicAmount']?.toString() ??
           json['transactionAmount']?.toString() ??
           _firstNonZeroAmount(
             json['payFiatAmount'],
@@ -126,29 +130,30 @@ class TransactionModel {
 
   // ── Hive storage (Map serialization) ────────────────────────────────
   Map<String, dynamic> toMap() => {
-        'txnId': txnId,
-        'orderNo': orderNo,
-        'merchName': merchName,
-        'merchCategoryDesc': merchCategoryDesc,
-        'side': side,
-        'tradeStatus': tradeStatus,
-        'basicAmount': basicAmount,
-        'basicCurrency': basicCurrency,
-        'transactionAmount': transactionAmount,
-        'transactionCurrency': transactionCurrency,
-        'txnCreate': txnCreate,
-        'declinedReason': declinedReason,
-        'status': status,
-        'pan4': pan4,
-        'pan6': pan6,
-        'cardToken': cardToken,
-        'point': point,
-        'rewardSide': rewardSide,
-        'rewardType': rewardType,
-        'rewardSubType': rewardSubType,
-        'customCategory': customCategory,
-        'rawApiData': rawApiData,
-      };
+    'txnId': txnId,
+    'orderNo': orderNo,
+    'merchName': merchName,
+    'merchCategoryDesc': merchCategoryDesc,
+    'mccCode': mccCode,
+    'side': side,
+    'tradeStatus': tradeStatus,
+    'basicAmount': basicAmount,
+    'basicCurrency': basicCurrency,
+    'transactionAmount': transactionAmount,
+    'transactionCurrency': transactionCurrency,
+    'txnCreate': txnCreate,
+    'declinedReason': declinedReason,
+    'status': status,
+    'pan4': pan4,
+    'pan6': pan6,
+    'cardToken': cardToken,
+    'point': point,
+    'rewardSide': rewardSide,
+    'rewardType': rewardType,
+    'rewardSubType': rewardSubType,
+    'customCategory': customCategory,
+    'rawApiData': rawApiData,
+  };
 
   factory TransactionModel.fromMap(Map<dynamic, dynamic> map) {
     return TransactionModel(
@@ -156,9 +161,11 @@ class TransactionModel {
       orderNo: map['orderNo']?.toString(),
       merchName: map['merchName']?.toString(),
       merchCategoryDesc: map['merchCategoryDesc']?.toString(),
+      mccCode: map['mccCode']?.toString(),
       side: map['side']?.toString(),
       tradeStatus: map['tradeStatus']?.toString(),
-      basicAmount: map['basicAmount']?.toString() ??
+      basicAmount:
+          map['basicAmount']?.toString() ??
           map['transactionAmount']?.toString(),
       basicCurrency: map['basicCurrency']?.toString(),
       transactionAmount: map['transactionAmount']?.toString(),
@@ -203,6 +210,7 @@ class TransactionModel {
       add('outOrderId', orderNo);
       add('merchName', merchName);
       add('merchCategoryDesc', merchCategoryDesc);
+      add('mccCode', mccCode);
       add('basicAmount', basicAmount);
       add('basicCurrency', basicCurrency);
       add('transactionAmount', transactionAmount);
@@ -233,6 +241,7 @@ class TransactionModel {
         : MerchantCategories.resolve(
             merchName,
             apiCategory: merchCategoryDesc,
+            mccCode: mccCode,
           );
 
     return TransactionEntity(
@@ -253,6 +262,7 @@ class TransactionModel {
       rewardSide: rewardSide,
       rewardType: rewardType,
       rewardSubType: rewardSubType,
+      mccCode: mccCode,
       customCategory: customCategory,
       rawApiData: rawApiData,
     );
@@ -289,15 +299,17 @@ class TransactionModel {
 
     final signedAmount = switch (parsedSide) {
       TransactionSide.refund => rawAmount.abs(),
-      _ => status == TransactionStatus.reversal
-          ? rawAmount.abs()
-          : -(rawAmount.abs()),
+      _ =>
+        status == TransactionStatus.reversal
+            ? rawAmount.abs()
+            : -(rawAmount.abs()),
     };
 
     return _toEntityBase(
       recordType: recordType,
-      merchantName:
-          (merchName?.isNotEmpty == true) ? merchName! : 'Unknown Merchant',
+      merchantName: (merchName?.isNotEmpty == true)
+          ? merchName!
+          : 'Unknown Merchant',
       parsedSide: parsedSide,
       signedAmount: signedAmount,
       status: status,

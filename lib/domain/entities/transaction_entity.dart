@@ -22,6 +22,10 @@ class TransactionEntity {
   final String? rewardSide;
   final String? rewardType;
   final String? rewardSubType;
+
+  /// Merchant Category Code from the asset-records API.
+  final String? mccCode;
+
   final String? customCategory;
   final Map<String, dynamic> rawApiData;
 
@@ -41,6 +45,7 @@ class TransactionEntity {
     this.rewardSide,
     this.rewardType,
     this.rewardSubType,
+    this.mccCode,
     this.customCategory,
     this.rawApiData = const {},
   });
@@ -63,9 +68,9 @@ class TransactionEntity {
 
   /// Signed point delta: positive when earned, negative when spent.
   int get signedPointAmount => switch (rewardSide) {
-        '2' => -pointAmount.abs(),
-        _ => pointAmount.abs(),
-      };
+    '2' => -pointAmount.abs(),
+    _ => pointAmount.abs(),
+  };
 
   TransactionEntity copyWith({String? category, String? customCategory}) {
     return TransactionEntity(
@@ -84,6 +89,7 @@ class TransactionEntity {
       rewardSide: rewardSide,
       rewardType: rewardType,
       rewardSubType: rewardSubType,
+      mccCode: mccCode,
       customCategory: customCategory ?? this.customCategory,
       rawApiData: rawApiData,
     );
@@ -110,11 +116,11 @@ enum TransactionStatus {
   }
 
   String get label => switch (this) {
-        TransactionStatus.inProgress => 'In Progress',
-        TransactionStatus.completed => 'Completed',
-        TransactionStatus.declined => 'Declined',
-        TransactionStatus.reversal => 'Reversal',
-      };
+    TransactionStatus.inProgress => 'In Progress',
+    TransactionStatus.completed => 'Completed',
+    TransactionStatus.declined => 'Declined',
+    TransactionStatus.reversal => 'Reversal',
+  };
 }
 
 /// Maps card transaction `side` values from the asset-records API.
@@ -135,9 +141,9 @@ enum TransactionSide {
   }
 
   String get label => switch (this) {
-        TransactionSide.auth => 'Authorization',
-        TransactionSide.transaction => 'Purchase',
-        TransactionSide.refund => 'Refund',
-        TransactionSide.atmWithdrawal => 'ATM Withdrawal',
-      };
+    TransactionSide.auth => 'Authorization',
+    TransactionSide.transaction => 'Purchase',
+    TransactionSide.refund => 'Refund',
+    TransactionSide.atmWithdrawal => 'ATM Withdrawal',
+  };
 }

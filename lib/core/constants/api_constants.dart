@@ -23,12 +23,12 @@ class ApiConstants {
   static const String assetTransactionRecords =
       '/v5/card/transaction/query-asset-records';
 
-  /// Primary data source used by the app (reward point records include spend data).
-  static const String transactionRecords = rewardPointRecords;
+  /// Primary data source: asset records (includes mccCode, full transaction data).
+  /// Reward point records are fetched separately for bonus activity.
+  static const String transactionRecords = assetTransactionRecords;
 
   // ── Defaults ───────────────────────────────────────────────────────────
   static const String defaultRecvWindow = '5000';
-  static const int defaultPageSize =
-      10; // Зверніть увагу: за документацією Bybit Points default/max це 10-50, краще поставити 10.
-  static const int maxPageSize = 50;
+  static const int defaultPageSize = 100;
+  static const int maxPageSize = 500;
 }

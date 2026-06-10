@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:bybit_card_tracker/core/constants/merchant_categories.dart';
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
 import 'package:bybit_card_tracker/core/utils/currency_converter.dart';
 import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
@@ -30,9 +31,33 @@ class _TransactionDetailScreenState
   String? _selectedCategory;
   bool _saving = false;
 
+  /// Returns the effective category for the dropdown initial value.
+  /// If customCategory is set, use it.
+  /// Otherwise resolve via MCC so we never get a raw code like "4900".
+  String _resolvedCategory(TransactionEntity tx, List<String> allCategories) {
+    if (tx.customCategory != null && tx.customCategory!.isNotEmpty) {
+      final custom = tx.customCategory!;
+      // Guard: custom value must be a valid category; fall back if not.
+      if (allCategories.contains(custom)) return custom;
+    }
+
+    final resolved = MerchantCategories.resolve(
+      tx.merchantName,
+      mccCode: tx.mccCode,
+      apiCategory: tx.category,
+    );
+
+    // If resolved category is in the list, return it; otherwise 'Other'.
+    return allCategories.contains(resolved)
+        ? resolved
+        : MerchantCategories.fallbackCategory;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final modelAsync = ref.watch(transactionModelProvider(widget.transaction.id));
+    final modelAsync = ref.watch(
+      transactionModelProvider(widget.transaction.id),
+    );
     final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
     final tx = widget.transaction;
@@ -43,8 +68,7 @@ class _TransactionDetailScreenState
       rate: widget.exchangeRate,
     );
 
-    _selectedCategory ??=
-        tx.customCategory ?? tx.category;
+    _selectedCategory ??= _resolvedCategory(tx, settings.allCategories);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Transaction Details')),
@@ -52,9 +76,9 @@ class _TransactionDetailScreenState
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('Error: $error')),
         data: (model) {
-          final apiFields = model?.apiFieldsForDisplay ?? tx.rawApiData.map(
-            (k, v) => MapEntry(k, v?.toString() ?? ''),
-          );
+          final apiFields =
+              model?.apiFieldsForDisplay ??
+              tx.rawApiData.map((k, v) => MapEntry(k, v?.toString() ?? ''));
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -75,7 +99,7 @@ class _TransactionDetailScreenState
                 decoration: InputDecoration(
                   helperText: tx.hasCustomCategory
                       ? 'Custom category for this transaction only'
-                      : 'Auto-assigned from merchant rules',
+                      : 'Auto-assigned from MCC code',
                 ),
                 items: settings.allCategories
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -93,7 +117,9 @@ class _TransactionDetailScreenState
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _saving ? null : () => _saveCategory(reset: false),
+                      onPressed: _saving
+                          ? null
+                          : () => _saveCategory(reset: false),
                       child: _saving
                           ? const SizedBox(
                               width: 18,
@@ -106,7 +132,9 @@ class _TransactionDetailScreenState
                   if (tx.hasCustomCategory) ...[
                     const SizedBox(width: 12),
                     OutlinedButton(
-                      onPressed: _saving ? null : () => _saveCategory(reset: true),
+                      onPressed: _saving
+                          ? null
+                          : () => _saveCategory(reset: true),
                       child: const Text('Reset'),
                     ),
                   ],
@@ -137,7 +165,9 @@ class _TransactionDetailScreenState
   Future<void> _saveCategory({required bool reset}) async {
     setState(() => _saving = true);
     try {
-      await ref.read(transactionProvider.notifier).setTransactionCategory(
+      await ref
+          .read(transactionProvider.notifier)
+          .setTransactionCategory(
             widget.transaction.id,
             reset ? null : _selectedCategory,
           );
@@ -151,8 +181,12 @@ class _TransactionDetailScreenState
           ),
         );
         if (reset) {
+          final settings = ref.read(settingsProvider);
           setState(() {
-            _selectedCategory = widget.transaction.category;
+            _selectedCategory = _resolvedCategory(
+              widget.transaction,
+              settings.allCategories,
+            );
           });
         }
         Navigator.pop(context);
@@ -164,46 +198,80 @@ class _TransactionDetailScreenState
 
   static String _labelForApiKey(String key) {
     return switch (key) {
-      'transactionId' => 'Transaction ID',
-      'outOrderId' => 'Order ID',
+      'txnId' => 'Transaction ID',
+      'orderNo' => 'Order ID',
       'bizId' => 'Business ID',
       'bizTxnId' => 'Business Txn ID',
       'merchName' => 'Merchant',
       'merchCategoryDesc' => 'Merchant category (API)',
+      'mccCode' => 'MCC code',
       'merchCity' => 'City',
       'merchCountry' => 'Country',
       'basicCurrency' => 'Currency',
-      'basicAmount' => 'Basic amount',
+      'basicAmount' => 'Amount',
       'transactionAmount' => 'Transaction amount',
-      'payFiatAmount' => 'Pay with fiat',
-      'transactionCurrencyAmount' => 'Pay with crypto',
-      'transactionDate' => 'Transaction date',
-      'createTime' => 'Created',
-      'updateTime' => 'Updated',
-      'point' => 'Points',
-      'side' => 'Point side',
-      'type' => 'Type',
-      'subType' => 'Sub-type',
+      'transactionCurrency' => 'Transaction currency',
+      'paidAmount' => 'Paid amount',
+      'paidCurrency' => 'Paid currency',
+      'billAmount' => 'Bill amount',
+      'totalFees' => 'Total fees',
+      'totalTax' => 'Total tax',
+      'foreignTransactionFee' => 'Foreign transaction fee',
+      'withdrawalFee' => 'Withdrawal fee',
+      'bonusAmount' => 'Bonus amount',
+      'txnCreate' => 'Created',
       'pan4' => 'Card (last 4)',
       'pan6' => 'Card (first 6)',
+      'side' => 'Transaction type',
+      'tradeStatus' => 'Trade status',
+      'status' => 'Status',
+      'declinedReason' => 'Declined reason',
+      'uid' => 'User ID',
       _ => key,
     };
   }
 
   static String _formatApiValue(String key, String value) {
     final lower = key.toLowerCase();
-    if (lower.contains('time') || lower.contains('date')) {
+    if (lower.contains('time') ||
+        lower.contains('date') ||
+        lower == 'txncreate') {
       final ms = int.tryParse(value);
       if (ms != null) {
-        return DateFormat('yyyy-MM-dd HH:mm:ss').format(
-          DateTime.fromMillisecondsSinceEpoch(ms),
-        );
+        return DateFormat(
+          'yyyy-MM-dd HH:mm:ss',
+        ).format(DateTime.fromMillisecondsSinceEpoch(ms));
       }
     }
     if (key == 'side') {
       return switch (value) {
-        '1' => '1 (Earn points)',
-        '2' => '2 (Deduct points)',
+        '1' => 'Authorization',
+        '2' => 'Authorization Reversal',
+        '3' => 'Purchase',
+        '4' => 'Refund (unDeduct)',
+        '5' => 'Refund',
+        '6' => 'Chargeback',
+        '7' => 'Direct Purchase',
+        '8' => 'Refund Reversal',
+        '13' => 'ATM Withdrawal',
+        _ => value,
+      };
+    }
+    if (key == 'tradeStatus') {
+      return switch (value) {
+        '0' => 'In Progress',
+        '1' => 'Completed',
+        '2' => 'Declined',
+        '3' => 'Reversal',
+        _ => value,
+      };
+    }
+    if (key == 'status') {
+      return switch (value) {
+        '-1' => 'Init',
+        '0' => 'Pending',
+        '1' => 'Success',
+        '2' => 'Fail',
         _ => value,
       };
     }
@@ -291,9 +359,9 @@ class _ApiFieldRow extends StatelessWidget {
             flex: 2,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
             ),
           ),
           Expanded(
