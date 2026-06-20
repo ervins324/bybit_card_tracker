@@ -66,6 +66,7 @@ class _TransactionDetailScreenState
       tx.amount,
       showInUah: widget.showInUah,
       rate: widget.exchangeRate,
+      paidAmount: tx.paidAmount,
     );
 
     _selectedCategory ??= _resolvedCategory(tx, settings.allCategories);
@@ -89,7 +90,8 @@ class _TransactionDetailScreenState
                 amountColor: amountColor,
                 date: DateFormat('MMM d, yyyy · HH:mm').format(tx.dateTime),
                 sideLabel: tx.side.label,
-                statusLabel: tx.status.label,
+                apiStatusLabel: tx.apiStatus.label,
+                tradeStatusLabel: tx.tradeStatus.label,
               ),
               const SizedBox(height: 16),
               Text('Category', style: theme.textTheme.titleSmall),
@@ -285,7 +287,8 @@ class _HeaderCard extends StatelessWidget {
   final Color amountColor;
   final String date;
   final String sideLabel;
-  final String statusLabel;
+  final String apiStatusLabel;
+  final String tradeStatusLabel;
 
   const _HeaderCard({
     required this.merchantName,
@@ -293,7 +296,8 @@ class _HeaderCard extends StatelessWidget {
     required this.amountColor,
     required this.date,
     required this.sideLabel,
-    required this.statusLabel,
+    required this.apiStatusLabel,
+    required this.tradeStatusLabel,
   });
 
   @override
@@ -327,7 +331,7 @@ class _HeaderCard extends StatelessWidget {
           Text(date, style: theme.textTheme.bodySmall),
           const SizedBox(height: 4),
           Text(
-            '$sideLabel · $statusLabel',
+            '$sideLabel · API: $apiStatusLabel · Trade: $tradeStatusLabel',
             style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.gold),
           ),
         ],

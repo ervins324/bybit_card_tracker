@@ -86,7 +86,7 @@ class BybitRemoteDataSourceImpl implements BybitRemoteDataSource {
   }) async {
     final allRecords = <TransactionModel>[];
     var page = 1;
-    const pageSize = 10; // Points endpoint max is 10–50
+    const pageSize = 50; // Points endpoint max is 10–50
 
     while (true) {
       final json = await _postWithRetry(
@@ -110,6 +110,8 @@ class BybitRemoteDataSourceImpl implements BybitRemoteDataSource {
       if (dataList.length < pageSize) break;
 
       page++;
+
+      await Future.delayed(const Duration(seconds: 1));
     }
 
     return allRecords;

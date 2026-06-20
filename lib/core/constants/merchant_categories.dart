@@ -5,27 +5,39 @@
 /// Manual per-transaction overrides are still supported via customCategory.
 class MerchantCategoryRule {
   final String category;
-  final List<String>
-  keywords; // kept for data-model compatibility; unused in resolve
-  const MerchantCategoryRule({required this.category, required this.keywords});
+  final String pattern;
+  final bool exactMatch;
 
-  MerchantCategoryRule copyWith({String? category, List<String>? keywords}) {
+  const MerchantCategoryRule({
+    required this.category,
+    required this.pattern,
+    this.exactMatch = false,
+  });
+
+  MerchantCategoryRule copyWith({String? category, String? pattern, bool? exactMatch}) {
     return MerchantCategoryRule(
       category: category ?? this.category,
-      keywords: keywords ?? this.keywords,
+      pattern: pattern ?? this.pattern,
+      exactMatch: exactMatch ?? this.exactMatch,
     );
   }
 
-  Map<String, dynamic> toMap() => {'category': category, 'keywords': keywords};
+  Map<String, dynamic> toMap() => {
+    'category': category,
+    'pattern': pattern,
+    'exactMatch': exactMatch,
+  };
 
   factory MerchantCategoryRule.fromMap(Map<dynamic, dynamic> map) {
+    String p = map['pattern']?.toString() ?? '';
+    if (p.isEmpty && map['keywords'] is List) {
+      final list = map['keywords'] as List;
+      if (list.isNotEmpty) p = list.first.toString();
+    }
     return MerchantCategoryRule(
       category: map['category']?.toString() ?? 'Other',
-      keywords:
-          (map['keywords'] as List?)
-              ?.map((e) => e.toString().toLowerCase())
-              .toList() ??
-          const [],
+      pattern: p,
+      exactMatch: map['exactMatch'] == true,
     );
   }
 }
@@ -429,6 +441,19 @@ class MerchantCategories {
     String? mccCode,
     List<MerchantCategoryRule> userRules = const [],
   }) {
+    if (merchName != null && merchName.trim().isNotEmpty) {
+      final lowerName = merchName.toLowerCase();
+      for (final rule in userRules) {
+        if (rule.pattern.isEmpty) continue;
+        final patternLower = rule.pattern.toLowerCase();
+        if (rule.exactMatch) {
+          if (lowerName == patternLower) return rule.category;
+        } else {
+          if (lowerName.contains(patternLower)) return rule.category;
+        }
+      }
+    }
+
     final fromMcc = _categoryFromMcc(mccCode);
     if (fromMcc != null) return fromMcc;
 

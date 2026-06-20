@@ -56,6 +56,58 @@ class TransactionModel {
     this.rawApiData = const {},
   });
 
+  TransactionModel copyWith({
+    String? txnId,
+    String? orderNo,
+    String? merchName,
+    String? merchCategoryDesc,
+    String? mccCode,
+    String? side,
+    String? tradeStatus,
+    String? basicAmount,
+    String? basicCurrency,
+    String? transactionAmount,
+    String? transactionCurrency,
+    int? txnCreate,
+    String? declinedReason,
+    String? status,
+    String? pan4,
+    String? pan6,
+    String? cardToken,
+    int? point,
+    String? rewardSide,
+    String? rewardType,
+    String? rewardSubType,
+    String? customCategory,
+    Map<String, dynamic>? rawApiData,
+  }) {
+    return TransactionModel(
+      txnId: txnId ?? this.txnId,
+      orderNo: orderNo ?? this.orderNo,
+      merchName: merchName ?? this.merchName,
+      merchCategoryDesc: merchCategoryDesc ?? this.merchCategoryDesc,
+      mccCode: mccCode ?? this.mccCode,
+      side: side ?? this.side,
+      tradeStatus: tradeStatus ?? this.tradeStatus,
+      basicAmount: basicAmount ?? this.basicAmount,
+      basicCurrency: basicCurrency ?? this.basicCurrency,
+      transactionAmount: transactionAmount ?? this.transactionAmount,
+      transactionCurrency: transactionCurrency ?? this.transactionCurrency,
+      txnCreate: txnCreate ?? this.txnCreate,
+      declinedReason: declinedReason ?? this.declinedReason,
+      status: status ?? this.status,
+      pan4: pan4 ?? this.pan4,
+      pan6: pan6 ?? this.pan6,
+      cardToken: cardToken ?? this.cardToken,
+      point: point ?? this.point,
+      rewardSide: rewardSide ?? this.rewardSide,
+      rewardType: rewardType ?? this.rewardType,
+      rewardSubType: rewardSubType ?? this.rewardSubType,
+      customCategory: customCategory ?? this.customCategory,
+      rawApiData: rawApiData ?? this.rawApiData,
+    );
+  }
+
   double get _spendAmount =>
       double.tryParse(basicAmount ?? transactionAmount ?? '') ?? 0.0;
 
@@ -196,8 +248,40 @@ class TransactionModel {
 
     void add(String key, dynamic value) {
       if (value == null) return;
-      final text = value.toString().trim();
+      String text = value.toString().trim();
       if (text.isEmpty) return;
+
+      final lowerKey = key.toLowerCase();
+      final keysToTrim = [
+        'basicamount',
+        'transactionamount',
+        'totalfees',
+        'transactioncurrencyamount',
+        'paidfiat',
+        'paidamount',
+        'billamount',
+        'foreigntransactionfee',
+        'fxpad',
+        'totaltax',
+      ];
+
+      if (keysToTrim.contains(lowerKey) ||
+          lowerKey.contains('amount') ||
+          lowerKey.contains('fee') ||
+          lowerKey.contains('tax') ||
+          lowerKey.contains('pad')) {
+        final parsed = double.tryParse(text);
+        if (parsed != null) {
+          if (parsed.abs() < 0.000001) return; // Hide near-zero
+
+          if (text.contains('.')) {
+            text = text
+                .replaceAll(RegExp(r'0*$'), '')
+                .replaceAll(RegExp(r'\.$'), '');
+          }
+        }
+      }
+
       fields[key] = text;
     }
 
@@ -234,15 +318,31 @@ class TransactionModel {
     required String merchantName,
     required TransactionSide parsedSide,
     required double signedAmount,
-    required TransactionStatus status,
+    required double paidAmount,
+    required TransactionApiStatus apiStatus,
+    required TransactionTradeStatus tradeStatus,
   }) {
-    final resolvedCategory = customCategory?.trim().isNotEmpty == true
+    String? effectiveMcc = mccCode;
+    String? effectiveCategoryDesc = merchCategoryDesc;
+
+    if ((effectiveMcc == null || effectiveMcc.isEmpty) &&
+        effectiveCategoryDesc != null &&
+        RegExp(r'^\d+$').hasMatch(effectiveCategoryDesc.trim())) {
+      effectiveMcc = effectiveCategoryDesc.trim();
+      effectiveCategoryDesc = null;
+    }
+
+    String resolvedCategory = customCategory?.trim().isNotEmpty == true
         ? customCategory!.trim()
         : MerchantCategories.resolve(
             merchName,
-            apiCategory: merchCategoryDesc,
-            mccCode: mccCode,
+            apiCategory: effectiveCategoryDesc,
+            mccCode: effectiveMcc,
           );
+
+    if (RegExp(r'^\d+$').hasMatch(resolvedCategory.trim())) {
+      resolvedCategory = 'Other';
+    }
 
     return TransactionEntity(
       id: txnId,
@@ -250,11 +350,13 @@ class TransactionModel {
       category: resolvedCategory,
       recordType: recordType,
       amount: signedAmount,
+      paidAmount: paidAmount,
       currency: basicCurrency ?? 'USD',
       dateTime: txnCreate != null
           ? DateTime.fromMillisecondsSinceEpoch(txnCreate!)
           : DateTime.now(),
-      status: status,
+      apiStatus: apiStatus,
+      tradeStatus: tradeStatus,
       side: parsedSide,
       declinedReason: declinedReason,
       pan4: pan4 ?? '****',
@@ -285,7 +387,9 @@ class TransactionModel {
         ),
         parsedSide: TransactionSide.transaction,
         signedAmount: 0,
-        status: TransactionStatus.completed,
+        paidAmount: 0,
+        apiStatus: TransactionApiStatus.success,
+        tradeStatus: TransactionTradeStatus.completed,
       );
     }
 
@@ -293,16 +397,35 @@ class TransactionModel {
         ? TransactionSide.refund
         : TransactionSide.fromApi(side);
     final rawAmount = _spendAmount;
-    final status = tradeStatus != null
-        ? TransactionStatus.fromApi(tradeStatus)
-        : TransactionStatus.completed;
+    final tradeStatusEnum = tradeStatus != null
+        ? TransactionTradeStatus.fromApi(tradeStatus)
+        : TransactionTradeStatus.completed;
+
+    final apiStatusEnum = status != null
+        ? TransactionApiStatus.fromApi(status)
+        : TransactionApiStatus.success;
 
     final signedAmount = switch (parsedSide) {
       TransactionSide.refund => rawAmount.abs(),
       _ =>
-        status == TransactionStatus.reversal
+        tradeStatusEnum == TransactionTradeStatus.reversal
             ? rawAmount.abs()
             : -(rawAmount.abs()),
+    };
+
+    final double paidFiat =
+        double.tryParse(
+          rawApiData['payFiatAmount']?.toString() ??
+              rawApiData['paidAmount']?.toString() ??
+              '',
+        ) ??
+        0.0;
+    final double signedPaidAmount = switch (parsedSide) {
+      TransactionSide.refund => paidFiat.abs(),
+      _ =>
+        tradeStatusEnum == TransactionTradeStatus.reversal
+            ? paidFiat.abs()
+            : -(paidFiat.abs()),
     };
 
     return _toEntityBase(
@@ -312,7 +435,9 @@ class TransactionModel {
           : 'Unknown Merchant',
       parsedSide: parsedSide,
       signedAmount: signedAmount,
-      status: status,
+      paidAmount: signedPaidAmount,
+      apiStatus: apiStatusEnum,
+      tradeStatus: tradeStatusEnum,
     );
   }
 

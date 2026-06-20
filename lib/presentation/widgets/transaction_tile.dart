@@ -12,6 +12,9 @@ class TransactionTile extends StatelessWidget {
   final bool showInUah;
   final double exchangeRate;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   const TransactionTile({
     super.key,
@@ -19,6 +22,9 @@ class TransactionTile extends StatelessWidget {
     required this.showInUah,
     required this.exchangeRate,
     this.onTap,
+    this.onLongPress,
+    this.isSelectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -30,6 +36,7 @@ class TransactionTile extends StatelessWidget {
       transaction.amount,
       showInUah: showInUah,
       rate: exchangeRate,
+      paidAmount: transaction.paidAmount,
     );
     final dateStr = DateFormat('MMM d, yyyy').format(transaction.dateTime);
     final timeStr = DateFormat('HH:mm').format(transaction.dateTime);
@@ -38,18 +45,30 @@ class TransactionTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(14),
         child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: AppTheme.cardColor,
+        color: isSelected ? AppTheme.gold.withValues(alpha: 0.1) : AppTheme.cardColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.cardBorderColor, width: 0.5),
+        border: Border.all(
+          color: isSelected ? AppTheme.gold : AppTheme.cardBorderColor, 
+          width: isSelected ? 1.5 : 0.5
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
+            if (isSelectionMode) ...[
+              Checkbox(
+                value: isSelected,
+                onChanged: (_) => onTap?.call(),
+                activeColor: AppTheme.gold,
+              ),
+              const SizedBox(width: 8),
+            ],
             // ─ Category icon ─
             Container(
               width: 42,
@@ -117,12 +136,25 @@ class TransactionTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  amountStr,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: amountColor,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      amountStr,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: amountColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _statusColor(transaction.apiStatus),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -139,6 +171,15 @@ class TransactionTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _statusColor(TransactionApiStatus status) {
+    return switch (status) {
+      TransactionApiStatus.success => AppTheme.green,
+      TransactionApiStatus.fail => AppTheme.red,
+      TransactionApiStatus.pending => Colors.grey,
+      TransactionApiStatus.init => Colors.grey,
+    };
   }
 
   IconData _categoryIcon(String category) {

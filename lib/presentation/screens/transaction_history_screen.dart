@@ -15,6 +15,70 @@ class TransactionHistoryScreen extends ConsumerStatefulWidget {
 class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  final Set<String> _selectedTxIds = {};
+
+  bool get _isSelectionMode => _selectedTxIds.isNotEmpty;
+
+  void _toggleSelection(String txnId) {
+    setState(() {
+      if (_selectedTxIds.contains(txnId)) {
+        _selectedTxIds.remove(txnId);
+      } else {
+        _selectedTxIds.add(txnId);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedTxIds.clear();
+    });
+  }
+
+  Future<void> _changeCategoryForSelected() async {
+    final settings = ref.read(settingsProvider);
+    String? selectedCategory;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Change Category'),
+              content: DropdownButtonFormField<String>(
+                initialValue: selectedCategory,
+                hint: const Text('Select category'),
+                items: settings.allCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (val) {
+                  if (val != null) setStateDialog(() => selectedCategory = val);
+                },
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                ElevatedButton(
+                  onPressed: () {
+                    if (selectedCategory != null) Navigator.pop(ctx, selectedCategory);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
+
+    if (result != null) {
+      final ids = _selectedTxIds.toList();
+      _clearSelection();
+      for (final id in ids) {
+        await ref.read(transactionProvider.notifier).setTransactionCategory(id, result);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Category updated for ${ids.length} transactions.')));
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -29,7 +93,21 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transaction History'),
+        title: _isSelectionMode 
+            ? Text('${_selectedTxIds.length} selected') 
+            : const Text('Transaction History'),
+        leading: _isSelectionMode
+            ? IconButton(icon: const Icon(Icons.close), onPressed: _clearSelection)
+            : null,
+        actions: _isSelectionMode
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.category_rounded),
+                  tooltip: 'Change Category',
+                  onPressed: _changeCategoryForSelected,
+                )
+              ]
+            : null,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
@@ -82,20 +160,30 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
             padding: const EdgeInsets.only(top: 8, bottom: 24),
             itemCount: filtered.length,
             itemBuilder: (context, index) {
+              final tx = filtered[index];
               return TransactionTile(
-                transaction: filtered[index],
+                transaction: tx,
                 showInUah: settings.showInUah,
                 exchangeRate: settings.exchangeRate,
+                isSelectionMode: _isSelectionMode,
+                isSelected: _selectedTxIds.contains(tx.id),
+                onLongPress: () {
+                  if (!_isSelectionMode) _toggleSelection(tx.id);
+                },
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => TransactionDetailScreen(
-                        transaction: filtered[index],
-                        showInUah: settings.showInUah,
-                        exchangeRate: settings.exchangeRate,
+                  if (_isSelectionMode) {
+                    _toggleSelection(tx.id);
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TransactionDetailScreen(
+                          transaction: tx,
+                          showInUah: settings.showInUah,
+                          exchangeRate: settings.exchangeRate,
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  }
                 },
               );
             },

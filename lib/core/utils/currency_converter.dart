@@ -14,8 +14,14 @@ class CurrencyConverter {
     double amount, {
     required bool showInUah,
     required double rate,
+    double? paidAmount,
   }) {
-    final value = showInUah ? toUah(amount, rate) : amount;
+    final double value;
+    if (showInUah) {
+      value = (paidAmount != null && paidAmount.abs() > 0) ? paidAmount : toUah(amount, rate);
+    } else {
+      value = amount;
+    }
     final symbol = showInUah ? '₴' : '\$';
     final formatter = NumberFormat.currency(
       symbol: symbol,
@@ -29,8 +35,14 @@ class CurrencyConverter {
     double amount, {
     required bool showInUah,
     required double rate,
+    double? paidAmount,
   }) {
-    final value = showInUah ? toUah(amount, rate) : amount;
+    final double value;
+    if (showInUah) {
+      value = (paidAmount != null && paidAmount.abs() > 0) ? paidAmount : toUah(amount, rate);
+    } else {
+      value = amount;
+    }
     final symbol = showInUah ? '₴' : '\$';
     final prefix = value >= 0 ? '+' : '';
     final formatter = NumberFormat.currency(

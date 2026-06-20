@@ -1,7 +1,7 @@
 name: bybit_card_tracker
 description: "Bybit Card expense tracker & analytics app."
-publish_to: 'none'
-version: 0.1.0+1
+publish_to: "none"
+version: 1.0.1+1
 
 environment:
   sdk: ^3.11.3
