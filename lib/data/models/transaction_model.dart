@@ -397,6 +397,7 @@ class TransactionModel {
         ? TransactionSide.refund
         : TransactionSide.fromApi(side);
     final rawAmount = _spendAmount;
+
     final tradeStatusEnum = tradeStatus != null
         ? TransactionTradeStatus.fromApi(tradeStatus)
         : TransactionTradeStatus.completed;
@@ -405,13 +406,21 @@ class TransactionModel {
         ? TransactionApiStatus.fromApi(status)
         : TransactionApiStatus.success;
 
-    final signedAmount = switch (parsedSide) {
-      TransactionSide.refund => rawAmount.abs(),
-      _ =>
-        tradeStatusEnum == TransactionTradeStatus.reversal
-            ? rawAmount.abs()
-            : -(rawAmount.abs()),
-    };
+    // Перевіряємо, чи транзакція була відхилена або завершилася помилкою
+    final bool isFailedTxn =
+        apiStatusEnum == TransactionApiStatus.fail ||
+        tradeStatusEnum == TransactionTradeStatus.declined;
+
+    // Якщо транзакція неуспішна — сума для статистики 0.0, інакше рахуємо як зазвичай
+    final signedAmount = isFailedTxn
+        ? 0.0
+        : switch (parsedSide) {
+            TransactionSide.refund => rawAmount.abs(),
+            _ =>
+              tradeStatusEnum == TransactionTradeStatus.reversal
+                  ? rawAmount.abs()
+                  : -(rawAmount.abs()),
+          };
 
     final double paidFiat =
         double.tryParse(
@@ -420,13 +429,17 @@ class TransactionModel {
               '',
         ) ??
         0.0;
-    final double signedPaidAmount = switch (parsedSide) {
-      TransactionSide.refund => paidFiat.abs(),
-      _ =>
-        tradeStatusEnum == TransactionTradeStatus.reversal
-            ? paidFiat.abs()
-            : -(paidFiat.abs()),
-    };
+
+    // Обнуляємо також суму списання у фіатній валюті (наприклад, UAH), якщо транзакція фейл
+    final double signedPaidAmount = isFailedTxn
+        ? 0.0
+        : switch (parsedSide) {
+            TransactionSide.refund => paidFiat.abs(),
+            _ =>
+              tradeStatusEnum == TransactionTradeStatus.reversal
+                  ? paidFiat.abs()
+                  : -(paidFiat.abs()),
+          };
 
     return _toEntityBase(
       recordType: recordType,
