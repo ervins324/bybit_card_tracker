@@ -47,7 +47,9 @@ class TransactionTile extends StatelessWidget {
       transaction.amount,
       showInUah: showInUah,
       rate: exchangeRate,
-      paidAmount: transaction.paidAmount,
+      paidAmount: transaction.conversionMode == UahConversionMode.paidAmount
+          ? transaction.paidAmount
+          : null,
     );
     final dateStr = DateFormat('MMM d, yyyy').format(transaction.dateTime);
     final timeStr = DateFormat('HH:mm').format(transaction.dateTime);

@@ -1,3 +1,5 @@
+enum UahConversionMode { rate, paidAmount }
+
 /// Clean domain entity representing a single card transaction or bonus record.
 ///
 /// All business logic should operate on this type, not on raw API models.
@@ -11,6 +13,11 @@ class TransactionEntity {
   /// Zero for pure bonus records.
   final double amount;
   final double paidAmount;
+
+  /// UAH amount as reported directly by the API (payFiatAmount / paidAmount field).
+  /// Zero if the API did not provide it.
+  final double paidAmountUah;
+
   final String currency;
   final DateTime dateTime;
   final TransactionApiStatus apiStatus;
@@ -19,25 +26,26 @@ class TransactionEntity {
   final String? declinedReason;
   final String pan4;
 
-  /// Reward points for bonus records (always positive; use [rewardSide] for direction).
   final int pointAmount;
   final String? rewardSide;
   final String? rewardType;
   final String? rewardSubType;
 
-  /// Merchant Category Code from the asset-records API.
   final String? mccCode;
-
   final String? customCategory;
   final Map<String, dynamic> rawApiData;
 
-  const TransactionEntity({
+  final UahConversionMode conversionMode;
+  String get paidCurrency => rawApiData['paidCurrency']?.toString() ?? '';
+
+  TransactionEntity({
     required this.id,
     required this.merchantName,
     required this.category,
     required this.recordType,
     required this.amount,
     required this.paidAmount,
+    this.paidAmountUah = 0.0,
     required this.currency,
     required this.dateTime,
     required this.apiStatus,
@@ -52,31 +60,43 @@ class TransactionEntity {
     this.mccCode,
     this.customCategory,
     this.rawApiData = const {},
-  });
+    UahConversionMode? conversionMode,
+  }) : conversionMode = conversionMode ?? UahConversionMode.rate;
 
   bool get hasCustomCategory =>
       customCategory != null && customCategory!.isNotEmpty;
 
   bool get isCardPurchase => recordType == TransactionRecordType.cardPurchase;
-
   bool get isBonus => recordType == TransactionRecordType.bonus;
-
-  /// Whether this transaction represents a purchase (money leaving the card).
   bool get isPurchase => isCardPurchase && amount < 0;
-
-  /// Whether this transaction represents a refund (money returning).
   bool get isRefund => isCardPurchase && amount > 0;
-
-  /// The absolute value of the fiat amount (always positive).
   double get absoluteAmount => amount.abs();
 
-  /// Signed point delta: positive when earned, negative when spent.
+  /// Returns the absolute display amount for this transaction.
+  /// When showInUah is true and conversionMode is paidAmount and the API
+  /// provided a UAH value, returns that directly. Otherwise multiplies by rate.
+  double effectiveDisplayAmount({
+    required bool showInUah,
+    required double rate,
+  }) {
+    if (!showInUah) return absoluteAmount;
+    if (conversionMode == UahConversionMode.paidAmount &&
+        paidAmountUah.abs() > 0) {
+      return paidAmountUah.abs();
+    }
+    return absoluteAmount * rate;
+  }
+
   int get signedPointAmount => switch (rewardSide) {
     '2' => -pointAmount.abs(),
     _ => pointAmount.abs(),
   };
 
-  TransactionEntity copyWith({String? category, String? customCategory}) {
+  TransactionEntity copyWith({
+    String? category,
+    String? customCategory,
+    UahConversionMode? conversionMode,
+  }) {
     return TransactionEntity(
       id: id,
       merchantName: merchantName,
@@ -84,6 +104,7 @@ class TransactionEntity {
       recordType: recordType,
       amount: amount,
       paidAmount: paidAmount,
+      paidAmountUah: paidAmountUah,
       currency: currency,
       dateTime: dateTime,
       apiStatus: apiStatus,
@@ -98,18 +119,18 @@ class TransactionEntity {
       mccCode: mccCode,
       customCategory: customCategory ?? this.customCategory,
       rawApiData: rawApiData,
+      conversionMode: conversionMode ?? this.conversionMode,
     );
   }
 }
 
 enum TransactionRecordType { cardPurchase, bonus }
 
-/// Maps the API `status` field.
 enum TransactionApiStatus {
-  init, // -1
-  pending, // 0
-  success, // 1
-  fail; // 2
+  init,
+  pending,
+  success,
+  fail;
 
   static TransactionApiStatus fromApi(String? value) {
     return switch (value) {
@@ -129,12 +150,11 @@ enum TransactionApiStatus {
   };
 }
 
-/// Maps the API `tradeStatus` field.
 enum TransactionTradeStatus {
-  inProgress, // 0
-  completed, // 1
-  declined, // 2
-  reversal; // 3
+  inProgress,
+  completed,
+  declined,
+  reversal;
 
   static TransactionTradeStatus fromApi(String? value) {
     return switch (value) {
@@ -154,21 +174,20 @@ enum TransactionTradeStatus {
   };
 }
 
-/// Maps card transaction `side` values from the asset-records API.
 enum TransactionSide {
-  auth, // 1
-  authReversal, // 2
-  transaction, // 3
-  refundUnDeduct, // 4
-  refund, // 5
-  chargeback, // 6
-  transactionDirect, // 7
-  refundReversal, // 8
-  chargebackReversal, // 9
-  refundRequest, // 10
-  refundReversalRequest, // 11
-  chargebackFee, // 12
-  atmWithdrawal; // 13
+  auth,
+  authReversal,
+  transaction,
+  refundUnDeduct,
+  refund,
+  chargeback,
+  transactionDirect,
+  refundReversal,
+  chargebackReversal,
+  refundRequest,
+  refundReversalRequest,
+  chargebackFee,
+  atmWithdrawal;
 
   static TransactionSide fromApi(String? value) {
     return switch (value) {
@@ -205,4 +224,3 @@ enum TransactionSide {
     TransactionSide.atmWithdrawal => 'ATM Withdrawal',
   };
 }
-

@@ -6,61 +6,86 @@ import 'package:bybit_card_tracker/presentation/providers/transaction_provider.d
 
 // ── Derived statistics providers (card purchases only) ─────────────────────
 
-/// Total spending (purchases only, as a positive number) in USD.
+/// Total spending (purchases only, as a positive number).
 final totalSpendUsdProvider = Provider<double>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
-  return txns
-      .where((tx) => tx.isPurchase)
-      .fold<double>(0.0, (sum, tx) => sum + tx.absoluteAmount);
+  final settings = ref.watch(settingsProvider);
+
+  return txns.where((tx) => tx.isPurchase).fold<double>(0.0, (sum, tx) {
+    final absValue = tx
+        .effectiveDisplayAmount(
+          showInUah: settings.showInUah,
+          rate: settings.exchangeRate,
+        )
+        .abs();
+    return sum + absValue;
+  });
 });
 
-/// Total refunds in USD.
+/// Total refunds.
 final totalRefundsUsdProvider = Provider<double>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
+  final settings = ref.watch(settingsProvider);
   return txns
       .where((tx) => tx.isRefund)
-      .fold<double>(0.0, (sum, tx) => sum + tx.absoluteAmount);
+      .fold<double>(
+        0.0,
+        (sum, tx) =>
+            sum +
+            tx
+                .effectiveDisplayAmount(
+                  showInUah: settings.showInUah,
+                  rate: settings.exchangeRate,
+                )
+                .abs(), // <--- Додано .abs()
+      );
 });
 
-/// Net spending (purchases - refunds) in USD.
+/// Net spending (purchases - refunds).
 final netSpendUsdProvider = Provider<double>((ref) {
-  return ref.watch(totalSpendUsdProvider) -
-      ref.watch(totalRefundsUsdProvider);
+  return ref.watch(totalSpendUsdProvider) - ref.watch(totalRefundsUsdProvider);
 });
 
-/// Category breakdown: `{ "Restaurants": 150.0, "Grocery Stores": 80.0, … }`
-/// Values are in USD (absolute amounts of purchases).
+/// Category breakdown using per-transaction conversion.
 final categoryBreakdownProvider = Provider<Map<String, double>>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
+  final settings = ref.watch(settingsProvider);
   final map = <String, double>{};
-
   for (final tx in txns) {
     if (!tx.isPurchase) continue;
-    map[tx.category] = (map[tx.category] ?? 0) + tx.absoluteAmount;
+    final value = tx
+        .effectiveDisplayAmount(
+          showInUah: settings.showInUah,
+          rate: settings.exchangeRate,
+        )
+        .abs(); // <--- Додано .abs()
+    map[tx.category] = (map[tx.category] ?? 0) + value;
   }
-
-  final sorted = Map.fromEntries(
+  return Map.fromEntries(
     map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)),
   );
-  return sorted;
 });
 
-/// Monthly spending breakdown: `{ "2024-01": 500.0, "2024-02": 320.0, … }`
+/// Monthly spending breakdown using per-transaction conversion.
 final monthlySpendProvider = Provider<Map<String, double>>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
+  final settings = ref.watch(settingsProvider);
   final map = <String, double>{};
   final formatter = DateFormat('yyyy-MM');
-
   for (final tx in txns) {
     if (!tx.isPurchase) continue;
     final key = formatter.format(tx.dateTime);
-    map[key] = (map[key] ?? 0) + tx.absoluteAmount;
+    final value = tx
+        .effectiveDisplayAmount(
+          showInUah: settings.showInUah,
+          rate: settings.exchangeRate,
+        )
+        .abs(); // <--- Додано .abs()
+    map[key] = (map[key] ?? 0) + value;
   }
-
-  final sorted = Map.fromEntries(
+  return Map.fromEntries(
     map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
   );
-  return sorted;
 });
 
 /// Total card transaction count.
@@ -88,8 +113,6 @@ final totalPointsSpentProvider = Provider<int>((ref) {
 final formattedTotalSpendProvider = Provider<String>((ref) {
   final total = ref.watch(totalSpendUsdProvider);
   final settings = ref.watch(settingsProvider);
-  final value =
-      settings.showInUah ? total * settings.exchangeRate : total;
   final symbol = settings.showInUah ? '₴' : '\$';
-  return '$symbol${value.toStringAsFixed(2)}';
+  return '$symbol${total.toStringAsFixed(2)}';
 });

@@ -25,47 +25,26 @@ class TransactionRepositoryImpl implements TransactionRepository {
       apiSecret: apiSecret,
       baseUrl: baseUrl,
     );
-
     await Future.delayed(const Duration(seconds: 1));
-
     final pointRecords = await remoteDatasource.fetchAllRewardPoints(
       apiKey: apiKey,
       apiSecret: apiSecret,
       baseUrl: baseUrl,
     );
 
-    // 2. Filter out duplicates and keep only standalone refunds/bonuses from points
-    // Create a set of existing asset transaction IDs for O(1) lookup
     final assetIds = assetRecords.map((asset) => asset.txnId).toSet();
-
     final filteredPointRecords = pointRecords.where((pointRecord) {
-      // Если транзакция уже есть в Asset Records, полностью игнорируем её из Point Records
-      if (assetIds.contains(pointRecord.txnId)) {
-        return false;
-      }
-
-      // Если ID уникальный, проверяем, является ли это рефандом или бонусом
+      if (assetIds.contains(pointRecord.txnId)) return false;
       final isRefund = pointRecord.isRefundRecord;
-      // final isPureBonus =
-      //     pointRecord.point != null &&
-      //     (pointRecord.basicAmount == null ||
-      //         pointRecord.transactionAmount == null);
       final amountStr =
           pointRecord.basicAmount ?? pointRecord.transactionAmount ?? '';
       final double amount = double.tryParse(amountStr) ?? 0.0;
-
       final isPureBonus = pointRecord.point != null && amount == 0.0;
-
       return isRefund || isPureBonus;
     }).toList();
 
-    // Combine asset records and valid unique point records without any merging
     final finalModels = [...assetRecords, ...filteredPointRecords];
-
-    // 3. Cache them locally (upserts by txnId)
     await localDatasource.cacheTransactions(finalModels);
-
-    // 4. Return as domain entities
     return finalModels.map((m) => m.toEntity()).toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
   }
@@ -84,6 +63,11 @@ class TransactionRepositoryImpl implements TransactionRepository {
   @override
   Future<void> updateTransactionCategory(String txnId, String? category) async {
     await localDatasource.updateCategory(txnId, category);
+  }
+
+  @override
+  Future<void> updateConversionMode(String txnId, String mode) async {
+    await localDatasource.updateConversionMode(txnId, mode);
   }
 
   @override

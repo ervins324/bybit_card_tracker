@@ -29,25 +29,27 @@ class TransactionDetailScreen extends ConsumerStatefulWidget {
 class _TransactionDetailScreenState
     extends ConsumerState<TransactionDetailScreen> {
   String? _selectedCategory;
-  bool _saving = false;
 
-  /// Returns the effective category for the dropdown initial value.
-  /// If customCategory is set, use it.
-  /// Otherwise resolve via MCC so we never get a raw code like "4900".
+  // Використовуємо локальну змінну ТІЛЬКИ для збереження ручного вибору користувача в UI
+  UahConversionMode? _userSelectedConversionMode;
+  bool _saving = false;
+  bool _savingMode = false;
+
   String _resolvedCategory(TransactionEntity tx, List<String> allCategories) {
-    if (tx.customCategory != null && tx.customCategory!.isNotEmpty) {
+    if (tx.hasCustomCategory) {
       final custom = tx.customCategory!;
-      // Guard: custom value must be a valid category; fall back if not.
       if (allCategories.contains(custom)) return custom;
     }
+
+    final userRules = ref.read(settingsProvider).categoryRules;
 
     final resolved = MerchantCategories.resolve(
       tx.merchantName,
       mccCode: tx.mccCode,
       apiCategory: tx.category,
+      userRules: userRules,
     );
 
-    // If resolved category is in the list, return it; otherwise 'Other'.
     return allCategories.contains(resolved)
         ? resolved
         : MerchantCategories.fallbackCategory;
@@ -61,12 +63,19 @@ class _TransactionDetailScreenState
     final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
     final tx = widget.transaction;
+
+    // Визначаємо актуальний режим на льоту: або вибір користувача, або значення з об'єкта
+    final currentConversionMode =
+        _userSelectedConversionMode ?? tx.conversionMode;
+
     final amountColor = tx.isRefund ? AppTheme.green : AppTheme.red;
     final amountStr = CurrencyConverter.formatSigned(
       tx.amount,
       showInUah: widget.showInUah,
       rate: widget.exchangeRate,
-      paidAmount: tx.paidAmount,
+      paidAmount: currentConversionMode == UahConversionMode.paidAmount
+          ? tx.paidAmount
+          : null,
     );
 
     _selectedCategory ??= _resolvedCategory(tx, settings.allCategories);
@@ -94,6 +103,8 @@ class _TransactionDetailScreenState
                 tradeStatusLabel: tx.tradeStatus.label,
               ),
               const SizedBox(height: 16),
+
+              // ── Category ──────────────────────────────────────────
               Text('Category', style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
@@ -101,7 +112,7 @@ class _TransactionDetailScreenState
                 decoration: InputDecoration(
                   helperText: tx.hasCustomCategory
                       ? 'Custom category for this transaction only'
-                      : 'Auto-assigned from MCC code',
+                      : 'Auto-assigned',
                 ),
                 items: settings.allCategories
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -143,6 +154,47 @@ class _TransactionDetailScreenState
                 ],
               ),
               const SizedBox(height: 24),
+
+              // ── UAH Conversion Mode ───────────────────────────────
+              Text('UAH Conversion', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<UahConversionMode>(
+                initialValue: currentConversionMode,
+                decoration: const InputDecoration(
+                  helperText: 'How to convert USD amount to UAH',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: UahConversionMode.rate,
+                    child: Text('Use exchange rate'),
+                  ),
+                  DropdownMenuItem(
+                    value: UahConversionMode.paidAmount,
+                    child: Text('Use paidAmount from API'),
+                  ),
+                ],
+                onChanged: _savingMode
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => _userSelectedConversionMode = value);
+                        }
+                      },
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _savingMode ? null : _saveConversionMode,
+                child: _savingMode
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save conversion mode'),
+              ),
+              const SizedBox(height: 24),
+
+              // ── API response ──────────────────────────────────────
               Text('API response', style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
               if (apiFields.isEmpty)
@@ -195,6 +247,32 @@ class _TransactionDetailScreenState
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _saveConversionMode() async {
+    final modeToSave =
+        _userSelectedConversionMode ?? widget.transaction.conversionMode;
+
+    setState(() => _savingMode = true);
+    try {
+      await ref
+          .read(transactionProvider.notifier)
+          .setConversionMode(widget.transaction.id, modeToSave);
+      ref.invalidate(transactionModelProvider(widget.transaction.id));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Conversion mode saved.')));
+
+        setState(() {
+          _userSelectedConversionMode = null;
+        });
+
+        Navigator.pop(context);
+      }
+    } finally {
+      if (mounted) setState(() => _savingMode = false);
     }
   }
 

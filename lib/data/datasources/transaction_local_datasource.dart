@@ -1,5 +1,4 @@
 import 'package:hive/hive.dart';
-
 import 'package:bybit_card_tracker/data/models/transaction_model.dart';
 
 /// Local data source backed by a Hive box.
@@ -15,14 +14,19 @@ class TransactionLocalDatasource {
     return Hive.openBox<Map>(_boxName);
   }
 
-  /// Saves transactions, preserving user overrides such as [customCategory].
+  /// Saves transactions, preserving user overrides such as [customCategory] and [conversionMode].
   Future<void> cacheTransactions(List<TransactionModel> transactions) async {
     final box = await _openBox();
     for (final tx in transactions) {
       final existing = box.get(tx.txnId);
       final map = tx.toMap();
-      if (existing != null && existing['customCategory'] != null) {
-        map['customCategory'] = existing['customCategory'];
+      if (existing != null) {
+        if (existing['customCategory'] != null) {
+          map['customCategory'] = existing['customCategory'];
+        }
+        if (existing['conversionMode'] != null) {
+          map['conversionMode'] = existing['conversionMode'];
+        }
       }
       await box.put(tx.txnId, map);
     }
@@ -33,13 +37,11 @@ class TransactionLocalDatasource {
     final models = box.values
         .map((map) => TransactionModel.fromMap(map))
         .toList();
-
     models.sort((a, b) {
       final aTime = a.txnCreate ?? 0;
       final bTime = b.txnCreate ?? 0;
       return bTime.compareTo(aTime);
     });
-
     return models;
   }
 
@@ -54,7 +56,6 @@ class TransactionLocalDatasource {
     final box = await _openBox();
     final existing = box.get(txnId);
     if (existing == null) return;
-
     final updated = Map<dynamic, dynamic>.from(existing);
     final trimmed = category?.trim();
     if (trimmed == null || trimmed.isEmpty) {
@@ -62,6 +63,15 @@ class TransactionLocalDatasource {
     } else {
       updated['customCategory'] = trimmed;
     }
+    await box.put(txnId, updated);
+  }
+
+  Future<void> updateConversionMode(String txnId, String mode) async {
+    final box = await _openBox();
+    final existing = box.get(txnId);
+    if (existing == null) return;
+    final updated = Map<dynamic, dynamic>.from(existing);
+    updated['conversionMode'] = mode;
     await box.put(txnId, updated);
   }
 

@@ -2,9 +2,6 @@ import 'package:bybit_card_tracker/core/constants/bonus_types.dart';
 import 'package:bybit_card_tracker/core/constants/merchant_categories.dart';
 import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
 
-/// Data model for Bybit card transactions and reward point records.
-///
-/// Handles JSON parsing from the API and Map serialization for Hive storage.
 class TransactionModel {
   final String txnId;
   final String? orderNo;
@@ -28,6 +25,7 @@ class TransactionModel {
   final String? rewardType;
   final String? rewardSubType;
   final String? customCategory;
+  final String? conversionMode;
   final Map<String, dynamic> rawApiData;
 
   const TransactionModel({
@@ -53,6 +51,7 @@ class TransactionModel {
     this.rewardType,
     this.rewardSubType,
     this.customCategory,
+    this.conversionMode,
     this.rawApiData = const {},
   });
 
@@ -79,6 +78,7 @@ class TransactionModel {
     String? rewardType,
     String? rewardSubType,
     String? customCategory,
+    String? conversionMode,
     Map<String, dynamic>? rawApiData,
   }) {
     return TransactionModel(
@@ -104,6 +104,7 @@ class TransactionModel {
       rewardType: rewardType ?? this.rewardType,
       rewardSubType: rewardSubType ?? this.rewardSubType,
       customCategory: customCategory ?? this.customCategory,
+      conversionMode: conversionMode ?? this.conversionMode,
       rawApiData: rawApiData ?? this.rawApiData,
     );
   }
@@ -121,7 +122,6 @@ class TransactionModel {
   bool get isRefundRecord =>
       BonusTypes.isRefund(rewardType: rewardType, rewardSubType: rewardSubType);
 
-  // ── JSON parsing (API response) ─────────────────────────────────────
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
     final isRewardRecord =
         json.containsKey('point') ||
@@ -176,11 +176,11 @@ class TransactionModel {
       rewardSide: rewardSide,
       rewardType: json['type']?.toString(),
       rewardSubType: json['subType']?.toString(),
+      conversionMode: json['conversionMode']?.toString(),
       rawApiData: Map<String, dynamic>.from(json),
     );
   }
 
-  // ── Hive storage (Map serialization) ────────────────────────────────
   Map<String, dynamic> toMap() => {
     'txnId': txnId,
     'orderNo': orderNo,
@@ -204,6 +204,7 @@ class TransactionModel {
     'rewardType': rewardType,
     'rewardSubType': rewardSubType,
     'customCategory': customCategory,
+    'conversionMode': conversionMode,
     'rawApiData': rawApiData,
   };
 
@@ -233,6 +234,7 @@ class TransactionModel {
       rewardType: map['rewardType']?.toString(),
       rewardSubType: map['rewardSubType']?.toString(),
       customCategory: map['customCategory']?.toString(),
+      conversionMode: map['conversionMode']?.toString(),
       rawApiData: _parseRawApiData(map['rawApiData']),
     );
   }
@@ -242,7 +244,6 @@ class TransactionModel {
     return value.map((key, val) => MapEntry(key.toString(), val));
   }
 
-  /// All API fields for the detail view (raw response preferred).
   Map<String, String> get apiFieldsForDisplay {
     final fields = <String, String>{};
 
@@ -272,8 +273,7 @@ class TransactionModel {
           lowerKey.contains('pad')) {
         final parsed = double.tryParse(text);
         if (parsed != null) {
-          if (parsed.abs() < 0.000001) return; // Hide near-zero
-
+          if (parsed.abs() < 0.000001) return;
           if (text.contains('.')) {
             text = text
                 .replaceAll(RegExp(r'0*$'), '')
@@ -319,8 +319,10 @@ class TransactionModel {
     required TransactionSide parsedSide,
     required double signedAmount,
     required double paidAmount,
+    required double paidAmountUah,
     required TransactionApiStatus apiStatus,
     required TransactionTradeStatus tradeStatus,
+    required UahConversionMode resolvedConversionMode,
   }) {
     String? effectiveMcc = mccCode;
     String? effectiveCategoryDesc = merchCategoryDesc;
@@ -351,6 +353,7 @@ class TransactionModel {
       recordType: recordType,
       amount: signedAmount,
       paidAmount: paidAmount,
+      paidAmountUah: paidAmountUah,
       currency: basicCurrency ?? 'USD',
       dateTime: txnCreate != null
           ? DateTime.fromMillisecondsSinceEpoch(txnCreate!)
@@ -367,11 +370,35 @@ class TransactionModel {
       mccCode: mccCode,
       customCategory: customCategory,
       rawApiData: rawApiData,
+      conversionMode: resolvedConversionMode,
     );
   }
 
-  // ── Domain mapping ──────────────────────────────────────────────────
   TransactionEntity toEntity() {
+    final double paidFiat =
+        double.tryParse(
+          rawApiData['payFiatAmount']?.toString() ??
+              rawApiData['paidAmount']?.toString() ??
+              '',
+        ) ??
+        0.0;
+
+    final String paidCurrencyStr =
+        rawApiData['paidCurrency']?.toString().toUpperCase() ??
+        rawApiData['payFiatCurrency']?.toString().toUpperCase() ??
+        '';
+
+    UahConversionMode resolvedConversionMode;
+    if (conversionMode == 'paidAmount' || conversionMode == 'rate') {
+      resolvedConversionMode = conversionMode == 'paidAmount'
+          ? UahConversionMode.paidAmount
+          : UahConversionMode.rate;
+    } else {
+      resolvedConversionMode = (paidFiat.abs() > 0 && paidCurrencyStr == 'UAH')
+          ? UahConversionMode.paidAmount
+          : UahConversionMode.rate;
+    }
+
     final recordType = isCardPurchase
         ? TransactionRecordType.cardPurchase
         : TransactionRecordType.bonus;
@@ -388,8 +415,10 @@ class TransactionModel {
         parsedSide: TransactionSide.transaction,
         signedAmount: 0,
         paidAmount: 0,
+        paidAmountUah: 0,
         apiStatus: TransactionApiStatus.success,
         tradeStatus: TransactionTradeStatus.completed,
+        resolvedConversionMode: resolvedConversionMode,
       );
     }
 
@@ -406,12 +435,10 @@ class TransactionModel {
         ? TransactionApiStatus.fromApi(status)
         : TransactionApiStatus.success;
 
-    // Перевіряємо, чи транзакція була відхилена або завершилася помилкою
     final bool isFailedTxn =
         apiStatusEnum == TransactionApiStatus.fail ||
         tradeStatusEnum == TransactionTradeStatus.declined;
 
-    // Якщо транзакція неуспішна — сума для статистики 0.0, інакше рахуємо як зазвичай
     final signedAmount = isFailedTxn
         ? 0.0
         : switch (parsedSide) {
@@ -422,15 +449,6 @@ class TransactionModel {
                   : -(rawAmount.abs()),
           };
 
-    final double paidFiat =
-        double.tryParse(
-          rawApiData['payFiatAmount']?.toString() ??
-              rawApiData['paidAmount']?.toString() ??
-              '',
-        ) ??
-        0.0;
-
-    // Обнуляємо також суму списання у фіатній валюті (наприклад, UAH), якщо транзакція фейл
     final double signedPaidAmount = isFailedTxn
         ? 0.0
         : switch (parsedSide) {
@@ -441,6 +459,8 @@ class TransactionModel {
                   : -(paidFiat.abs()),
           };
 
+    final double paidAmountUah = isFailedTxn ? 0.0 : paidFiat.abs();
+
     return _toEntityBase(
       recordType: recordType,
       merchantName: (merchName?.isNotEmpty == true)
@@ -449,8 +469,10 @@ class TransactionModel {
       parsedSide: parsedSide,
       signedAmount: signedAmount,
       paidAmount: signedPaidAmount,
+      paidAmountUah: paidAmountUah,
       apiStatus: apiStatusEnum,
       tradeStatus: tradeStatusEnum,
+      resolvedConversionMode: resolvedConversionMode,
     );
   }
 

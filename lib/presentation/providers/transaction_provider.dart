@@ -34,22 +34,19 @@ final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
 
 final transactionProvider =
     AsyncNotifierProvider<TransactionNotifier, List<TransactionEntity>>(
-  TransactionNotifier.new,
-);
+      TransactionNotifier.new,
+    );
 
 /// Manages the list of transactions — loads from cache on start,
 /// and syncs from the Bybit API on demand.
 class TransactionNotifier extends AsyncNotifier<List<TransactionEntity>> {
   @override
   Future<List<TransactionEntity>> build() async {
-    // On startup, try loading from cache for instant display.
     final repo = ref.watch(transactionRepositoryProvider);
     return repo.getCachedTransactions();
   }
 
   /// Triggers a full sync from the Bybit API.
-  ///
-  /// The previous data stays visible while loading, then gets replaced.
   Future<void> sync() async {
     final credentials = ref.read(credentialsProvider).valueOrNull;
     if (credentials == null || !credentials.isValid) {
@@ -60,8 +57,9 @@ class TransactionNotifier extends AsyncNotifier<List<TransactionEntity>> {
       return;
     }
 
-    state = const AsyncLoading<List<TransactionEntity>>()
-        .copyWithPrevious(state);
+    state = const AsyncLoading<List<TransactionEntity>>().copyWithPrevious(
+      state,
+    );
 
     try {
       final repo = ref.read(transactionRepositoryProvider);
@@ -93,6 +91,25 @@ class TransactionNotifier extends AsyncNotifier<List<TransactionEntity>> {
   Future<void> setTransactionCategory(String txnId, String? category) async {
     final repo = ref.read(transactionRepositoryProvider);
     await repo.updateTransactionCategory(txnId, category);
+    await reloadFromCache();
+  }
+
+  /// Sets the UAH conversion mode for a single transaction.
+  Future<void> setConversionMode(String txnId, UahConversionMode mode) async {
+    final repo = ref.read(transactionRepositoryProvider);
+    await repo.updateConversionMode(txnId, mode.name);
+    await reloadFromCache();
+  }
+
+  /// Sets the UAH conversion mode for multiple transactions at once.
+  Future<void> setConversionModeForMany(
+    List<String> txnIds,
+    UahConversionMode mode,
+  ) async {
+    final repo = ref.read(transactionRepositoryProvider);
+    for (final id in txnIds) {
+      await repo.updateConversionMode(id, mode.name);
+    }
     await reloadFromCache();
   }
 }
@@ -136,19 +153,19 @@ final bonusTransactionsProvider = Provider<List<TransactionEntity>>((ref) {
 
 final cardTransactionsAsyncProvider =
     Provider<AsyncValue<List<TransactionEntity>>>((ref) {
-  return ref.watch(transactionProvider).whenData(
-        (list) => ref.watch(cardTransactionsProvider),
-      );
-});
+      return ref
+          .watch(transactionProvider)
+          .whenData((list) => ref.watch(cardTransactionsProvider));
+    });
 
 final bonusTransactionsAsyncProvider =
     Provider<AsyncValue<List<TransactionEntity>>>((ref) {
-  return ref.watch(transactionProvider).whenData(
-        (list) => ref.watch(bonusTransactionsProvider),
-      );
-});
+      return ref
+          .watch(transactionProvider)
+          .whenData((list) => ref.watch(bonusTransactionsProvider));
+    });
 
 final transactionModelProvider =
     FutureProvider.family<TransactionModel?, String>((ref, txnId) async {
-  return ref.read(transactionRepositoryProvider).getTransactionById(txnId);
-});
+      return ref.read(transactionRepositoryProvider).getTransactionById(txnId);
+    });

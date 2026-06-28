@@ -47,10 +47,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       return Container(
         height: 260,
         alignment: Alignment.center,
-        child: Text(
-          'No spending data yet',
-          style: theme.textTheme.bodyMedium,
-        ),
+        child: Text('No spending data yet', style: theme.textTheme.bodyMedium),
       );
     }
 
@@ -104,8 +101,8 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                               _touchedIndex = -1;
                               return;
                             }
-                            _touchedIndex = response
-                                .touchedSection!.touchedSectionIndex;
+                            _touchedIndex =
+                                response.touchedSection!.touchedSectionIndex;
                           });
                         },
                       ),
@@ -117,9 +114,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                           value: entry.value,
                           color: _palette[i % _palette.length],
                           radius: isTouched ? 60 : 48,
-                          title: isTouched
-                              ? '${pct.toStringAsFixed(1)}%'
-                              : '',
+                          title: isTouched ? '${pct.toStringAsFixed(1)}%' : '',
                           titleStyle: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -137,62 +132,56 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: List.generate(
-                        min(topEntries.length, 8),
-                        (i) {
-                          final entry = topEntries[i];
-                          final value = widget.showInUah
-                              ? entry.value * widget.exchangeRate
-                              : entry.value;
-                          final symbol = widget.showInUah ? '₴' : '\$';
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: _palette[i % _palette.length],
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
+                      children: List.generate(min(topEntries.length, 8), (i) {
+                        final entry = topEntries[i];
+                        final value = entry.value;
+                        final symbol = widget.showInUah ? '₴' : '\$';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: _palette[i % _palette.length],
+                                  borderRadius: BorderRadius.circular(3),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        entry.key,
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                          fontSize: 11,
-                                          color: i == _touchedIndex
-                                              ? Colors.white
-                                              : null,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        '$symbol${value.toStringAsFixed(0)}',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                          fontSize: 10,
-                                          color: _palette[
-                                              i % _palette.length],
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      entry.key,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            fontSize: 11,
+                                            color: i == _touchedIndex
+                                                ? Colors.white
+                                                : null,
+                                          ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      '$symbol${value.toStringAsFixed(0)}',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            fontSize: 10,
+                                            color:
+                                                _palette[i % _palette.length],
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
                     ),
                   ),
                 ),

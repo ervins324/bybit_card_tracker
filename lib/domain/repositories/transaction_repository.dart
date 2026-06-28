@@ -22,6 +22,9 @@ abstract class TransactionRepository {
   /// Sets a category override for a single transaction.
   Future<void> updateTransactionCategory(String txnId, String? category);
 
+  /// Sets the UAH conversion mode for a single transaction.
+  Future<void> updateConversionMode(String txnId, String mode);
+
   /// Returns the stored model for a transaction, if cached.
   Future<TransactionModel?> getTransactionById(String txnId);
 }

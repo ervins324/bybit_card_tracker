@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
-import 'package:bybit_card_tracker/core/utils/currency_converter.dart';
 
 /// Glassmorphic-styled summary card showing total spend.
+/// Receives pre-computed display values (already in the correct currency).
 class SummaryCard extends StatelessWidget {
+  /// Total spend already converted to the display currency.
   final double totalSpendUsd;
+
+  /// Total refunds already converted to the display currency.
   final double totalRefundsUsd;
+
   final int transactionCount;
   final bool showInUah;
   final double exchangeRate;
@@ -20,20 +24,15 @@ class SummaryCard extends StatelessWidget {
     required this.exchangeRate,
   });
 
+  String _format(double value) {
+    final symbol = showInUah ? '₴' : '\$';
+    return '$symbol${value.toStringAsFixed(2)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final netSpend = totalSpendUsd - totalRefundsUsd;
-    final formattedTotal = CurrencyConverter.format(
-      netSpend,
-      showInUah: showInUah,
-      rate: exchangeRate,
-    );
-    final formattedRefunds = CurrencyConverter.format(
-      totalRefundsUsd,
-      showInUah: showInUah,
-      rate: exchangeRate,
-    );
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -41,10 +40,7 @@ class SummaryCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppTheme.gold.withValues(alpha: 0.15),
-            AppTheme.cardColor,
-          ],
+          colors: [AppTheme.gold.withValues(alpha: 0.15), AppTheme.cardColor],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
@@ -84,8 +80,8 @@ class SummaryCard extends StatelessWidget {
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: Text(
-                formattedTotal,
-                key: ValueKey(formattedTotal),
+                _format(netSpend),
+                key: ValueKey(_format(netSpend)),
                 style: theme.textTheme.headlineLarge?.copyWith(
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -99,24 +95,22 @@ class SummaryCard extends StatelessWidget {
                 _MiniStat(
                   icon: Icons.arrow_downward_rounded,
                   label: 'Purchases',
-                  value: CurrencyConverter.format(
-                    totalSpendUsd,
-                    showInUah: showInUah,
-                    rate: exchangeRate,
-                  ),
+                  value: _format(totalSpendUsd),
                   color: AppTheme.red,
                 ),
                 const SizedBox(width: 24),
                 _MiniStat(
                   icon: Icons.arrow_upward_rounded,
                   label: 'Refunds',
-                  value: formattedRefunds,
+                  value: _format(totalRefundsUsd),
                   color: AppTheme.green,
                 ),
                 const Spacer(),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.gold.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -162,16 +156,16 @@ class _MiniStat extends StatelessWidget {
           children: [
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 10,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontSize: 10),
             ),
             Text(
               value,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),

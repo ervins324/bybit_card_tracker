@@ -6,8 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
 
 /// Bar chart displaying monthly spending breakdown.
+/// [data] values are already in the display currency (USD or UAH),
+/// computed by the statistics provider with per-transaction conversion.
 class MonthlyBarChart extends StatelessWidget {
-  /// Key: "yyyy-MM", Value: amount in USD (absolute).
   final Map<String, double> data;
   final bool showInUah;
   final double exchangeRate;
@@ -33,7 +34,6 @@ class MonthlyBarChart extends StatelessWidget {
 
     final entries = data.entries.toList();
     final maxVal = entries.map((e) => e.value).reduce(max);
-    final multiplier = showInUah ? exchangeRate : 1.0;
     final symbol = showInUah ? '₴' : '\$';
 
     return Container(
@@ -59,16 +59,16 @@ class MonthlyBarChart extends StatelessWidget {
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: maxVal * multiplier * 1.2,
+                // Values already in display currency, no multiplier needed
+                maxY: maxVal * 1.2,
                 barTouchData: BarTouchData(
                   enabled: true,
                   touchTooltipData: BarTouchTooltipData(
                     tooltipRoundedRadius: 8,
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       final entry = entries[group.x.toInt()];
-                      final value = entry.value * multiplier;
                       return BarTooltipItem(
-                        '$symbol${value.toStringAsFixed(0)}',
+                        '$symbol${entry.value.toStringAsFixed(0)}',
                         TextStyle(
                           color: AppTheme.gold,
                           fontWeight: FontWeight.w600,
@@ -97,7 +97,7 @@ class MonthlyBarChart extends StatelessWidget {
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: Text(
-                            '$symbol${(value).toStringAsFixed(0)}',
+                            '$symbol${value.toStringAsFixed(0)}',
                             style: TextStyle(
                               color: AppTheme.textSecondary,
                               fontSize: 10,
@@ -116,7 +116,7 @@ class MonthlyBarChart extends StatelessWidget {
                         if (idx < 0 || idx >= entries.length) {
                           return const SizedBox.shrink();
                         }
-                        final key = entries[idx].key; // "yyyy-MM"
+                        final key = entries[idx].key;
                         final dt = DateFormat('yyyy-MM').parse(key);
                         final label = DateFormat('MMM').format(dt);
                         return Padding(
@@ -137,19 +137,16 @@ class MonthlyBarChart extends StatelessWidget {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => FlLine(
-                    color: AppTheme.cardBorderColor,
-                    strokeWidth: 0.5,
-                  ),
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: AppTheme.cardBorderColor, strokeWidth: 0.5),
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(entries.length, (i) {
-                  final value = entries[i].value * multiplier;
                   return BarChartGroupData(
                     x: i,
                     barRods: [
                       BarChartRodData(
-                        toY: value,
+                        toY: entries[i].value,
                         width: entries.length > 6 ? 14 : 24,
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(6),

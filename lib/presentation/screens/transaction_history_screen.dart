@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
 import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/transaction_provider.dart';
 import 'package:bybit_card_tracker/presentation/screens/transaction_detail_screen.dart';
@@ -86,6 +87,68 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
     super.dispose();
   }
 
+  Future<void> _changeConversionModeForSelected() async {
+    UahConversionMode? selectedMode;
+    final result = await showDialog<UahConversionMode>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Change Conversion Mode'),
+              content: DropdownButtonFormField<UahConversionMode>(
+                initialValue: selectedMode,
+                hint: const Text('Select conversion mode'),
+                items: const [
+                  DropdownMenuItem(
+                    value: UahConversionMode.rate,
+                    child: Text('Use exchange rate'),
+                  ),
+                  DropdownMenuItem(
+                    value: UahConversionMode.paidAmount,
+                    child: Text('Use paidAmount from API'),
+                  ),
+                ],
+                onChanged: (val) {
+                  if (val != null) setStateDialog(() => selectedMode = val);
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (selectedMode != null) Navigator.pop(ctx, selectedMode);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != null) {
+      final ids = _selectedTxIds.toList();
+      _clearSelection();
+      await ref
+          .read(transactionProvider.notifier)
+          .setConversionModeForMany(ids, result);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Conversion mode updated for ${ids.length} transaction${ids.length == 1 ? '' : 's'}.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final txnState = ref.watch(cardTransactionsAsyncProvider);
@@ -102,10 +165,15 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
         actions: _isSelectionMode
             ? [
                 IconButton(
+                  icon: const Icon(Icons.currency_exchange_rounded),
+                  tooltip: 'Change Conversion Mode',
+                  onPressed: _changeConversionModeForSelected,
+                ),
+                IconButton(
                   icon: const Icon(Icons.category_rounded),
                   tooltip: 'Change Category',
                   onPressed: _changeCategoryForSelected,
-                )
+                ),
               ]
             : null,
         bottom: PreferredSize(
