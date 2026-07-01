@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:bybit_card_tracker/presentation/providers/filter_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/transaction_provider.dart';
 
@@ -10,8 +11,11 @@ import 'package:bybit_card_tracker/presentation/providers/transaction_provider.d
 final totalSpendUsdProvider = Provider<double>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
   final settings = ref.watch(settingsProvider);
+  final period = ref.watch(selectedPeriodProvider);
 
-  return txns.where((tx) => tx.isPurchase).fold<double>(0.0, (sum, tx) {
+  return txns
+      .where((tx) => tx.isPurchase && period.contains(tx.dateTime))
+      .fold<double>(0.0, (sum, tx) {
     final absValue = tx
         .effectiveDisplayAmount(
           showInUah: settings.showInUah,
@@ -26,8 +30,10 @@ final totalSpendUsdProvider = Provider<double>((ref) {
 final totalRefundsUsdProvider = Provider<double>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
   final settings = ref.watch(settingsProvider);
+  final period = ref.watch(selectedPeriodProvider);
+
   return txns
-      .where((tx) => tx.isRefund)
+      .where((tx) => tx.isRefund && period.contains(tx.dateTime))
       .fold<double>(
         0.0,
         (sum, tx) =>
@@ -37,7 +43,7 @@ final totalRefundsUsdProvider = Provider<double>((ref) {
                   showInUah: settings.showInUah,
                   rate: settings.exchangeRate,
                 )
-                .abs(), // <--- Додано .abs()
+                .abs(),
       );
 });
 
@@ -50,15 +56,17 @@ final netSpendUsdProvider = Provider<double>((ref) {
 final categoryBreakdownProvider = Provider<Map<String, double>>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
   final settings = ref.watch(settingsProvider);
+  final period = ref.watch(selectedPeriodProvider);
+  
   final map = <String, double>{};
   for (final tx in txns) {
-    if (!tx.isPurchase) continue;
+    if (!tx.isPurchase || !period.contains(tx.dateTime)) continue;
     final value = tx
         .effectiveDisplayAmount(
           showInUah: settings.showInUah,
           rate: settings.exchangeRate,
         )
-        .abs(); // <--- Додано .abs()
+        .abs();
     map[tx.category] = (map[tx.category] ?? 0) + value;
   }
   return Map.fromEntries(
@@ -80,7 +88,31 @@ final monthlySpendProvider = Provider<Map<String, double>>((ref) {
           showInUah: settings.showInUah,
           rate: settings.exchangeRate,
         )
-        .abs(); // <--- Додано .abs()
+        .abs();
+    map[key] = (map[key] ?? 0) + value;
+  }
+  return Map.fromEntries(
+    map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+  );
+});
+
+/// Daily spending breakdown for the selected period.
+final dailySpendProvider = Provider<Map<String, double>>((ref) {
+  final txns = ref.watch(cardTransactionsProvider);
+  final settings = ref.watch(settingsProvider);
+  final period = ref.watch(selectedPeriodProvider);
+  
+  final map = <String, double>{};
+  final formatter = DateFormat('dd MMM');
+  for (final tx in txns) {
+    if (!tx.isPurchase || !period.contains(tx.dateTime)) continue;
+    final key = formatter.format(tx.dateTime);
+    final value = tx
+        .effectiveDisplayAmount(
+          showInUah: settings.showInUah,
+          rate: settings.exchangeRate,
+        )
+        .abs();
     map[key] = (map[key] ?? 0) + value;
   }
   return Map.fromEntries(
@@ -90,22 +122,27 @@ final monthlySpendProvider = Provider<Map<String, double>>((ref) {
 
 /// Total card transaction count.
 final transactionCountProvider = Provider<int>((ref) {
-  return ref.watch(cardTransactionsProvider).length;
+  final period = ref.watch(selectedPeriodProvider);
+  return ref.watch(cardTransactionsProvider)
+      .where((tx) => period.contains(tx.dateTime))
+      .length;
 });
 
 /// Total points earned from bonus activity.
 final totalPointsEarnedProvider = Provider<int>((ref) {
+  final period = ref.watch(selectedPeriodProvider);
   return ref
       .watch(bonusTransactionsProvider)
-      .where((tx) => tx.signedPointAmount > 0)
+      .where((tx) => tx.signedPointAmount > 0 && period.contains(tx.dateTime))
       .fold<int>(0, (sum, tx) => sum + tx.signedPointAmount);
 });
 
 /// Total points spent from bonus activity.
 final totalPointsSpentProvider = Provider<int>((ref) {
+  final period = ref.watch(selectedPeriodProvider);
   return ref
       .watch(bonusTransactionsProvider)
-      .where((tx) => tx.signedPointAmount < 0)
+      .where((tx) => tx.signedPointAmount < 0 && period.contains(tx.dateTime))
       .fold<int>(0, (sum, tx) => sum + tx.signedPointAmount.abs());
 });
 

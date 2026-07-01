@@ -12,7 +12,8 @@ import 'package:bybit_card_tracker/presentation/providers/statistics_provider.da
 import 'package:bybit_card_tracker/presentation/providers/transaction_provider.dart';
 import 'package:bybit_card_tracker/presentation/widgets/category_pie_chart.dart';
 import 'package:bybit_card_tracker/presentation/widgets/currency_toggle.dart';
-import 'package:bybit_card_tracker/presentation/widgets/monthly_bar_chart.dart';
+import 'package:bybit_card_tracker/presentation/widgets/daily_bar_chart.dart';
+import 'package:bybit_card_tracker/presentation/widgets/period_picker.dart';
 import 'package:bybit_card_tracker/presentation/widgets/summary_card.dart';
 
 /// Dashboard screen with summary card, pie chart, and bar chart.
@@ -28,7 +29,7 @@ class DashboardScreen extends ConsumerWidget {
     final totalRefunds = ref.watch(totalRefundsUsdProvider);
     final txnCount = ref.watch(transactionCountProvider);
     final categoryData = ref.watch(categoryBreakdownProvider);
-    final monthlyData = ref.watch(monthlySpendProvider);
+    final dailyData = ref.watch(dailySpendProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -57,6 +58,46 @@ class DashboardScreen extends ConsumerWidget {
                 ? null
                 : () => ref.read(transactionProvider.notifier).sync(),
           ),
+          // Card Selector
+          Builder(builder: (context) {
+            final allTxns = txnState.valueOrNull ?? [];
+            final cards = allTxns
+                .map((t) => t.pan4)
+                .where((pan) => pan.isNotEmpty && pan != '****')
+                .toSet()
+                .toList()
+              ..sort();
+              
+            final selectedCard = ref.watch(selectedCardProvider);
+
+            return PopupMenuButton<String?>(
+              icon: Icon(
+                Icons.credit_card_rounded,
+                color: selectedCard == null ? null : AppTheme.gold,
+              ),
+              tooltip: 'Select Card',
+              color: AppTheme.cardColor,
+              onSelected: (value) {
+                ref.read(selectedCardProvider.notifier).state = value;
+              },
+              itemBuilder: (_) {
+                final items = <PopupMenuEntry<String?>>[
+                  const PopupMenuItem(
+                    value: null,
+                    child: Text('All Cards'),
+                  ),
+                ];
+                if (cards.isNotEmpty) {
+                  items.add(const PopupMenuDivider());
+                  items.addAll(cards.map((pan) => PopupMenuItem(
+                    value: pan,
+                    child: Text('Card **** $pan'),
+                  )));
+                }
+                return items;
+              },
+            );
+          }),
           // Settings
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
@@ -120,6 +161,9 @@ class DashboardScreen extends ConsumerWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
               const SizedBox(height: 8),
+              // Period Picker
+              const PeriodPicker(),
+              const SizedBox(height: 8),
               // Summary card
               SummaryCard(
                 totalSpendUsd: totalSpend,
@@ -135,9 +179,9 @@ class DashboardScreen extends ConsumerWidget {
                 showInUah: settings.showInUah,
                 exchangeRate: settings.exchangeRate,
               ),
-              // Bar chart
-              MonthlyBarChart(
-                data: monthlyData,
+              // Daily Bar chart
+              DailyBarChart(
+                data: dailyData,
                 showInUah: settings.showInUah,
                 exchangeRate: settings.exchangeRate,
               ),

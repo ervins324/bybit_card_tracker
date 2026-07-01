@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:bybit_card_tracker/core/theme/app_theme.dart';
 import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
 import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/transaction_provider.dart';
@@ -17,6 +19,10 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final Set<String> _selectedTxIds = {};
+  
+  String _selectedType = 'All';
+  String _selectedStatus = 'All';
+  DateTimeRange? _selectedDateRange;
 
   bool get _isSelectionMode => _selectedTxIds.isNotEmpty;
 
@@ -149,6 +155,117 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
     }
   }
 
+  Future<void> _showFilterBottomSheet() async {
+    final theme = Theme.of(context);
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.cardColor,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                left: 20, right: 20, top: 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Filters', style: theme.textTheme.titleLarge),
+                  const SizedBox(height: 20),
+                  
+                  // Transaction Type Filter
+                  Text('Transaction Type', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  DropdownButton<String>(
+                    value: _selectedType,
+                    dropdownColor: AppTheme.cardColor,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(value: 'All', child: Text('All')),
+                      DropdownMenuItem(value: 'Purchases', child: Text('Purchases')),
+                      DropdownMenuItem(value: 'Refunds', child: Text('Refunds')),
+                    ],
+                    onChanged: (val) => setSheetState(() => _selectedType = val ?? 'All'),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Status Filter
+                  Text('Status', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  DropdownButton<String>(
+                    value: _selectedStatus,
+                    dropdownColor: AppTheme.cardColor,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(value: 'All', child: Text('All')),
+                      DropdownMenuItem(value: 'Completed', child: Text('Completed')),
+                      DropdownMenuItem(value: 'Pending', child: Text('Pending')),
+                      DropdownMenuItem(value: 'Declined/Failed', child: Text('Declined/Failed')),
+                    ],
+                    onChanged: (val) => setSheetState(() => _selectedStatus = val ?? 'All'),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Date Range Filter
+                  Text('Date Range', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: AppTheme.cardBorderColor),
+                    ),
+                    title: Text(_selectedDateRange == null 
+                        ? 'Select date range' 
+                        : '${DateFormat('dd MMM yyyy').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM yyyy').format(_selectedDateRange!.end)}'),
+                    trailing: _selectedDateRange == null 
+                        ? const Icon(Icons.date_range)
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => setSheetState(() => _selectedDateRange = null),
+                          ),
+                    onTap: () async {
+                      final range = await showDateRangePicker(
+                        context: context,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        initialDateRange: _selectedDateRange,
+                      );
+                      if (range != null) {
+                        setSheetState(() => _selectedDateRange = DateTimeRange(
+                          start: range.start,
+                          end: DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59),
+                        ));
+                      }
+                    },
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {}); // Apply filters to main screen
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Apply Filters'),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final txnState = ref.watch(cardTransactionsAsyncProvider);
@@ -175,7 +292,14 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
                   onPressed: _changeCategoryForSelected,
                 ),
               ]
-            : null,
+            : [
+                IconButton(
+                  icon: const Icon(Icons.filter_list_rounded),
+                  color: (_selectedType != 'All' || _selectedStatus != 'All' || _selectedDateRange != null) ? AppTheme.gold : null,
+                  tooltip: 'Filter',
+                  onPressed: _showFilterBottomSheet,
+                )
+              ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
@@ -206,9 +330,34 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
         error: (error, _) => Center(child: Text('Error: $error')),
         data: (transactions) {
           final filtered = transactions.where((tx) {
+            // Search Query
             final name = tx.merchantName.toLowerCase();
             final category = tx.category.toLowerCase();
-            return name.contains(_searchQuery) || category.contains(_searchQuery);
+            if (_searchQuery.isNotEmpty && !name.contains(_searchQuery) && !category.contains(_searchQuery)) {
+              return false;
+            }
+            
+            // Type Filter
+            if (_selectedType == 'Purchases' && !tx.isPurchase) return false;
+            if (_selectedType == 'Refunds' && !tx.isRefund) return false;
+            
+            // Status Filter
+            if (_selectedStatus != 'All') {
+               final isDeclined = tx.apiStatus == TransactionApiStatus.fail || tx.tradeStatus == TransactionTradeStatus.declined;
+               final isPending = tx.apiStatus == TransactionApiStatus.pending || tx.tradeStatus == TransactionTradeStatus.inProgress;
+               if (_selectedStatus == 'Completed' && (isDeclined || isPending)) return false;
+               if (_selectedStatus == 'Pending' && !isPending) return false;
+               if (_selectedStatus == 'Declined/Failed' && !isDeclined) return false;
+            }
+            
+            // Date Range Filter
+            if (_selectedDateRange != null) {
+              if (tx.dateTime.isBefore(_selectedDateRange!.start) || tx.dateTime.isAfter(_selectedDateRange!.end)) {
+                return false;
+              }
+            }
+            
+            return true;
           }).toList();
 
           if (filtered.isEmpty) {

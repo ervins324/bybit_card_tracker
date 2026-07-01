@@ -32,6 +32,8 @@ final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
 
 // ── Transaction state ────────────────────────────────────────────────────
 
+final selectedCardProvider = StateProvider<String?>((ref) => null);
+
 final transactionProvider =
     AsyncNotifierProvider<TransactionNotifier, List<TransactionEntity>>(
       TransactionNotifier.new,
@@ -46,7 +48,7 @@ class TransactionNotifier extends AsyncNotifier<List<TransactionEntity>> {
     return repo.getCachedTransactions();
   }
 
-  /// Triggers a full sync from the Bybit API.
+  /// Triggers a full sync from the Bybit API with progressive updates.
   Future<void> sync() async {
     final credentials = ref.read(credentialsProvider).valueOrNull;
     if (credentials == null || !credentials.isValid) {
@@ -67,6 +69,11 @@ class TransactionNotifier extends AsyncNotifier<List<TransactionEntity>> {
         apiKey: credentials.apiKey,
         apiSecret: credentials.apiSecret,
         baseUrl: credentials.baseUrl,
+        onProgress: (partials) async {
+          // Immediately read updated cache and yield progressive state
+          final updatedCache = await repo.getCachedTransactions();
+          state = AsyncData(updatedCache);
+        },
       );
       state = AsyncData(transactions);
     } catch (e, st) {
@@ -130,23 +137,26 @@ TransactionEntity _withResolvedCategory(
   );
 }
 
-/// Card purchases only, with user category rules applied.
+/// Card purchases only, with user category rules applied. Filtered by selected card.
 final cardTransactionsProvider = Provider<List<TransactionEntity>>((ref) {
   final txnState = ref.watch(transactionProvider);
   final userRules = ref.watch(settingsProvider).categoryRules;
+  final selectedCard = ref.watch(selectedCardProvider);
+  
   return txnState.valueOrNull
-          ?.where((tx) => tx.isCardPurchase)
+          ?.where((tx) => tx.isCardPurchase && (selectedCard == null || tx.pan4 == selectedCard))
           .map((tx) => _withResolvedCategory(tx, userRules))
           .toList() ??
       [];
 });
 
-/// System bonus / reward point activity (not card purchases).
+/// System bonus / reward point activity (not card purchases). Filtered by selected card.
 final bonusTransactionsProvider = Provider<List<TransactionEntity>>((ref) {
+  final selectedCard = ref.watch(selectedCardProvider);
   return ref
           .watch(transactionProvider)
           .valueOrNull
-          ?.where((tx) => tx.isBonus)
+          ?.where((tx) => tx.isBonus && (selectedCard == null || tx.pan4 == selectedCard))
           .toList() ??
       [];
 });

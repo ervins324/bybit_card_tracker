@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
 import 'package:bybit_card_tracker/core/utils/currency_converter.dart';
+import 'package:bybit_card_tracker/core/theme/category_ui_mapper.dart';
 import 'package:bybit_card_tracker/domain/entities/transaction_entity.dart';
 
 /// A single transaction list item with merchant info, category chip,
@@ -107,18 +108,25 @@ class TransactionTile extends StatelessWidget {
                   const SizedBox(width: 8),
                 ],
                 // ─ Category icon ─
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: amountColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    _categoryIcon(transaction.category),
-                    color: amountColor,
-                    size: 20,
-                  ),
+                Builder(
+                  builder: (context) {
+                    final uiInfo = CategoryUiMapper.getUiInfo(transaction.category);
+                    final iconColor = isDeclined ? AppTheme.red : uiInfo.color;
+                    
+                    return Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        uiInfo.icon,
+                        color: iconColor,
+                        size: 20,
+                      ),
+                    );
+                  }
                 ),
                 const SizedBox(width: 14),
 
@@ -231,71 +239,4 @@ class TransactionTile extends StatelessWidget {
     };
   }
 
-  IconData _categoryIcon(String category) {
-    final lower = category.toLowerCase();
-    if (lower.contains('restaurant') ||
-        lower.contains('fast food') ||
-        lower.contains('bakeri')) {
-      return Icons.restaurant_rounded;
-    }
-    if (lower.contains('grocery') || lower.contains('food')) {
-      return Icons.shopping_cart_rounded;
-    }
-    if (lower.contains('gas') || lower.contains('fuel')) {
-      return Icons.local_gas_station_rounded;
-    }
-    if (lower.contains('hotel') || lower.contains('lodging')) {
-      return Icons.hotel_rounded;
-    }
-    if (lower.contains('airline') || lower.contains('travel')) {
-      return Icons.flight_rounded;
-    }
-    if (lower.contains('transport') ||
-        lower.contains('taxi') ||
-        lower.contains('ride')) {
-      return Icons.directions_car_rounded;
-    }
-    if (lower.contains('cloth') ||
-        lower.contains('apparel') ||
-        lower.contains('shoe')) {
-      return Icons.checkroom_rounded;
-    }
-    if (lower.contains('electron') ||
-        lower.contains('computer') ||
-        lower.contains('software')) {
-      return Icons.devices_rounded;
-    }
-    if (lower.contains('pharmacy') ||
-        lower.contains('medical') ||
-        lower.contains('doctor') ||
-        lower.contains('hospital')) {
-      return Icons.local_hospital_rounded;
-    }
-    if (lower.contains('cinema') ||
-        lower.contains('movie') ||
-        lower.contains('entertain') ||
-        lower.contains('theater')) {
-      return Icons.movie_rounded;
-    }
-    if (lower.contains('atm') || lower.contains('cash')) {
-      return Icons.atm_rounded;
-    }
-    if (lower.contains('telecom') ||
-        lower.contains('internet') ||
-        lower.contains('cable')) {
-      return Icons.wifi_rounded;
-    }
-    if (lower.contains('parking')) {
-      return Icons.local_parking_rounded;
-    }
-    if (lower.contains('education') ||
-        lower.contains('school') ||
-        lower.contains('college')) {
-      return Icons.school_rounded;
-    }
-    if (lower.contains('utility') || lower.contains('utilities')) {
-      return Icons.bolt_rounded;
-    }
-    return Icons.receipt_long_rounded;
-  }
 }

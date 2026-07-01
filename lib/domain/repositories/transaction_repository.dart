@@ -11,6 +11,7 @@ abstract class TransactionRepository {
     required String apiKey,
     required String apiSecret,
     required String baseUrl,
+    void Function(List<TransactionEntity> partials)? onProgress,
   });
 
   /// Returns transactions from the local Hive cache.

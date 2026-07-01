@@ -19,17 +19,30 @@ class TransactionRepositoryImpl implements TransactionRepository {
     required String apiKey,
     required String apiSecret,
     required String baseUrl,
+    void Function(List<TransactionEntity> partials)? onProgress,
   }) async {
     final assetRecords = await remoteDatasource.fetchAllTransactions(
       apiKey: apiKey,
       apiSecret: apiSecret,
       baseUrl: baseUrl,
+      onPageFetched: (models) async {
+        await localDatasource.cacheTransactions(models);
+        onProgress?.call(models.map((m) => m.toEntity()).toList());
+      },
     );
     await Future.delayed(const Duration(seconds: 1));
     final pointRecords = await remoteDatasource.fetchAllRewardPoints(
       apiKey: apiKey,
       apiSecret: apiSecret,
       baseUrl: baseUrl,
+      onPageFetched: (models) async {
+        // Here we cache the raw models as they come in.
+        // We will filter out duplicates from asset records below,
+        // but it's safe to cache them temporarily since the keys will match
+        // or be distinct and get handled on query.
+        await localDatasource.cacheTransactions(models);
+        onProgress?.call(models.map((m) => m.toEntity()).toList());
+      },
     );
 
     final assetIds = assetRecords.map((asset) => asset.txnId).toSet();
