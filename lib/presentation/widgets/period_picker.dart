@@ -13,10 +13,17 @@ class PeriodPicker extends ConsumerStatefulWidget {
 class _PeriodPickerState extends ConsumerState<PeriodPicker> {
   late ScrollController _scrollController;
   late List<DatePeriod> _months;
+  late final DatePeriod _allTimePeriod;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _allTimePeriod = DatePeriod(
+      start: DateTime(2020),
+      end: DateTime(now.year, now.month, now.day, 23, 59, 59),
+      label: 'All Time',
+    );
     _scrollController = ScrollController();
     _months = _generateMonths();
     
@@ -57,7 +64,7 @@ class _PeriodPickerState extends ConsumerState<PeriodPicker> {
       child: ListView.builder(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
-        itemCount: _months.length + 1,
+        itemCount: _months.length + 2,
         itemBuilder: (context, index) {
           if (index == 0) {
             return Padding(
@@ -82,11 +89,29 @@ class _PeriodPickerState extends ConsumerState<PeriodPicker> {
               ),
             );
           }
+
+          final isAllTime = index == _months.length + 1;
+          if (isAllTime) {
+            final isSelected = selectedPeriod == _allTimePeriod || selectedPeriod.label == 'All Time';
+            return Padding(
+              padding: const EdgeInsets.only(left: 8, right: 16),
+              child: ChoiceChip(
+                label: const Text('All Time'),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    ref.read(selectedPeriodProvider.notifier).state = _allTimePeriod;
+                  }
+                },
+              ),
+            );
+          }
+
           final period = _months[index - 1];
           final isSelected = selectedPeriod == period;
           
           return Padding(
-            padding: EdgeInsets.only(right: index == _months.length ? 16 : 8),
+            padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
               label: Text(period.label),
               selected: isSelected,

@@ -31,11 +31,9 @@ class DatePeriod {
 
 final selectedPeriodProvider = StateProvider<DatePeriod>((ref) {
   final now = DateTime.now();
-  final startOfMonth = DateTime(now.year, now.month, 1);
-  final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
   return DatePeriod(
-    start: startOfMonth,
-    end: endOfMonth,
-    label: 'Current Month',
+    start: DateTime(2020),
+    end: DateTime(now.year, now.month, now.day, 23, 59, 59),
+    label: 'All Time',
   );
 });
