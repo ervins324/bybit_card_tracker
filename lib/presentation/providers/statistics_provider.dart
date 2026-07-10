@@ -74,28 +74,6 @@ final categoryBreakdownProvider = Provider<Map<String, double>>((ref) {
   );
 });
 
-/// Monthly spending breakdown using per-transaction conversion.
-final monthlySpendProvider = Provider<Map<String, double>>((ref) {
-  final txns = ref.watch(cardTransactionsProvider);
-  final settings = ref.watch(settingsProvider);
-  final map = <String, double>{};
-  final formatter = DateFormat('yyyy-MM');
-  for (final tx in txns) {
-    if (!tx.isPurchase) continue;
-    final key = formatter.format(tx.dateTime);
-    final value = tx
-        .effectiveDisplayAmount(
-          showInUah: settings.showInUah,
-          rate: settings.exchangeRate,
-        )
-        .abs();
-    map[key] = (map[key] ?? 0) + value;
-  }
-  return Map.fromEntries(
-    map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
-  );
-});
-
 /// Daily spending breakdown by category for the selected period.
 final dailySpendProvider = Provider<Map<String, Map<String, double>>>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
