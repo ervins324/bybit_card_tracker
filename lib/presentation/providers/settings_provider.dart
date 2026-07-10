@@ -7,12 +7,14 @@ import 'package:bybit_card_tracker/core/constants/merchant_categories.dart';
 class AppSettings {
   final bool showInUah;
   final double exchangeRate;
+  final String exchangeRateApiKey;
   final List<MerchantCategoryRule> categoryRules;
   final List<String> customCategories;
 
   const AppSettings({
     this.showInUah = false,
     this.exchangeRate = 41.0,
+    this.exchangeRateApiKey = '',
     this.categoryRules = const [],
     this.customCategories = const [],
   });
@@ -20,12 +22,14 @@ class AppSettings {
   AppSettings copyWith({
     bool? showInUah,
     double? exchangeRate,
+    String? exchangeRateApiKey,
     List<MerchantCategoryRule>? categoryRules,
     List<String>? customCategories,
   }) {
     return AppSettings(
       showInUah: showInUah ?? this.showInUah,
       exchangeRate: exchangeRate ?? this.exchangeRate,
+      exchangeRateApiKey: exchangeRateApiKey ?? this.exchangeRateApiKey,
       categoryRules: categoryRules ?? this.categoryRules,
       customCategories: customCategories ?? this.customCategories,
     );
@@ -39,6 +43,7 @@ class AppSettings {
 const _kBoxName = 'settings';
 const _kShowInUah = 'show_in_uah';
 const _kExchangeRate = 'exchange_rate';
+const _kExchangeRateApiKey = 'exchange_rate_api_key';
 const _kCategoryRules = 'category_rules';
 const _kCustomCategories = 'custom_categories';
 
@@ -60,6 +65,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
       showInUah: _box.get(_kShowInUah, defaultValue: false) as bool,
       exchangeRate:
           (_box.get(_kExchangeRate, defaultValue: 41.0) as num).toDouble(),
+      exchangeRateApiKey:
+          _box.get(_kExchangeRateApiKey, defaultValue: '') as String,
       categoryRules: rawRules
               ?.whereType<Map>()
               .map(MerchantCategoryRule.fromMap)
@@ -82,6 +89,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void setExchangeRate(double rate) {
     _box.put(_kExchangeRate, rate);
     state = state.copyWith(exchangeRate: rate);
+  }
+
+  void setExchangeRateApiKey(String key) {
+    _box.put(_kExchangeRateApiKey, key);
+    state = state.copyWith(exchangeRateApiKey: key);
   }
 
   void addCategoryRule(MerchantCategoryRule rule) {

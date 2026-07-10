@@ -6,6 +6,7 @@ import 'package:bybit_card_tracker/core/constants/api_constants.dart';
 import 'package:bybit_card_tracker/core/error/failures.dart';
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
 import 'package:bybit_card_tracker/core/utils/network_error_messages.dart';
+import 'package:bybit_card_tracker/data/datasources/exchange_rate_datasource.dart';
 import 'package:bybit_card_tracker/presentation/screens/category_rules_screen.dart';
 import 'package:bybit_card_tracker/presentation/providers/credentials_provider.dart';
 import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
@@ -18,11 +19,41 @@ import 'package:bybit_card_tracker/presentation/widgets/period_picker.dart';
 import 'package:bybit_card_tracker/presentation/widgets/summary_card.dart';
 
 /// Dashboard screen with summary card, pie chart, and bar chart.
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  var _autoFetched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoFetchRate());
+  }
+
+  Future<void> _autoFetchRate() async {
+    if (_autoFetched) return;
+    _autoFetched = true;
+
+    final apiKey = ref.read(settingsProvider).exchangeRateApiKey;
+    if (apiKey.isEmpty) return;
+
+    try {
+      final rate = await ExchangeRateDatasource.fetchUsdToUah(apiKey);
+      if (mounted) {
+        ref.read(settingsProvider.notifier).setExchangeRate(rate);
+      }
+    } catch (_) {
+      // Silently fail on auto-fetch; user can manually fetch via dialog.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final txnState = ref.watch(transactionProvider);
     final settings = ref.watch(settingsProvider);
@@ -64,7 +95,7 @@ class DashboardScreen extends ConsumerWidget {
                 .toSet()
                 .toList()
               ..sort();
-              
+             
             final selectedCard = ref.watch(selectedCardProvider);
 
             return PopupMenuButton<String?>(
@@ -99,7 +130,7 @@ class DashboardScreen extends ConsumerWidget {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
             color: AppTheme.cardColor,
-            onSelected: (value) => _handleMenu(context, ref, value),
+            onSelected: (value) => _handleMenu(value),
             itemBuilder: (_) => [
               const PopupMenuItem(
                 value: 'endpoint',
@@ -226,16 +257,16 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  void _handleMenu(BuildContext context, WidgetRef ref, String value) {
+  void _handleMenu(String value) {
     switch (value) {
       case 'endpoint':
-        _showEndpointDialog(context, ref);
+        _showEndpointDialog();
       case 'categories':
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const CategoryRulesScreen()),
         );
       case 'rate':
-        _showExchangeRateDialog(context, ref);
+        _showExchangeRateDialog();
       case 'clear':
         ref.read(transactionProvider.notifier).clearData();
       case 'logout':
@@ -245,44 +276,143 @@ class DashboardScreen extends ConsumerWidget {
     }
   }
 
-  void _showExchangeRateDialog(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController(
+  void _showExchangeRateDialog() {
+    final rateController = TextEditingController(
       text: ref.read(settingsProvider).exchangeRate.toString(),
     );
+    final apiKeyController = TextEditingController(
+      text: ref.read(settingsProvider).exchangeRateApiKey,
+    );
+    var isFetching = false;
+    String? fetchError;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.cardColor,
-        title: const Text('UAH Exchange Rate'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: '1 USD = ? UAH',
-            hintText: '41.0',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.cardColor,
+          title: const Text('UAH Exchange Rate'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Auto-fetch from API',
+                    style: Theme.of(ctx).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: apiKeyController,
+                  decoration: const InputDecoration(
+                    labelText: 'ExchangeRate-API Key',
+                    hintText: 'Paste your API key',
+                  ),
+                  obscureText: true,
+                ),
+                const SizedBox(height: 8),
+                if (fetchError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      fetchError!,
+                      style:
+                          TextStyle(color: AppTheme.red, fontSize: 12),
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isFetching
+                        ? null
+                        : () async {
+                            final key = apiKeyController.text.trim();
+                            if (key.isEmpty) {
+                              setDialogState(
+                                  () => fetchError = 'Enter an API key');
+                              return;
+                            }
+                            setDialogState(() {
+                              isFetching = true;
+                              fetchError = null;
+                            });
+                            try {
+                              final rate =
+                                  await ExchangeRateDatasource
+                                      .fetchUsdToUah(key);
+                              rateController.text =
+                                  rate.toStringAsFixed(2);
+                              ref
+                                  .read(settingsProvider.notifier)
+                                  .setExchangeRateApiKey(key);
+                              setDialogState(() {
+                                isFetching = false;
+                                fetchError = null;
+                              });
+                            } catch (e) {
+                              setDialogState(() {
+                                isFetching = false;
+                                fetchError = e
+                                    .toString()
+                                    .replaceFirst('Exception: ', '');
+                              });
+                            }
+                          },
+                    icon: isFetching
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          )
+                        : const Icon(Icons.cloud_download_rounded,
+                            size: 18),
+                    label: Text(isFetching ? 'Fetching...' : 'Fetch from API'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                Text('Or set manually',
+                    style: Theme.of(ctx).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: rateController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: '1 USD = ? UAH',
+                    hintText: '41.0',
+                  ),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final rate = double.tryParse(rateController.text);
+                if (rate != null && rate > 0) {
+                  ref.read(settingsProvider.notifier).setExchangeRate(rate);
+                }
+                ref
+                    .read(settingsProvider.notifier)
+                    .setExchangeRateApiKey(apiKeyController.text.trim());
+                Navigator.pop(ctx);
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final rate = double.tryParse(controller.text);
-              if (rate != null && rate > 0) {
-                ref.read(settingsProvider.notifier).setExchangeRate(rate);
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
 
-  void _showEndpointDialog(BuildContext context, WidgetRef ref) {
+  void _showEndpointDialog() {
     final credentials = ref.read(credentialsProvider).valueOrNull;
     var selected = credentials?.baseUrl ?? ApiConstants.mainnetBaseUrl;
     final endpoints = Map<String, String>.from(ApiConstants.regionalEndpoints);
@@ -334,7 +464,7 @@ class DashboardScreen extends ConsumerWidget {
                     .read(credentialsProvider.notifier)
                     .updateBaseUrl(selected);
                 if (ctx.mounted) Navigator.pop(ctx);
-                if (context.mounted) {
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Endpoint updated. Tap sync.')),
                   );
