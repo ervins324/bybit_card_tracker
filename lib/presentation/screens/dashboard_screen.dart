@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 import 'package:bybit_card_tracker/core/constants/api_constants.dart';
 import 'package:bybit_card_tracker/core/error/failures.dart';
@@ -43,16 +44,12 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(width: 8),
           // Sync button
           IconButton(
-            icon: txnState.isLoading
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppTheme.gold,
-                    ),
-                  )
-                : Icon(Icons.sync_rounded, color: AppTheme.gold),
+            icon: Icon(
+              Icons.sync_rounded,
+              color: txnState.isLoading
+                  ? AppTheme.textSecondary
+                  : AppTheme.gold,
+            ),
             tooltip: 'Sync transactions',
             onPressed: txnState.isLoading
                 ? null
@@ -148,13 +145,15 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: txnState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _ErrorView(
-          error: error,
-          onRetry: () => ref.read(transactionProvider.notifier).sync(),
-        ),
-        data: (_) => RefreshIndicator(
+      body: Stack(
+        children: [
+          txnState.when(
+            loading: () => const Center(child: SizedBox.shrink()),
+            error: (error, _) => _ErrorView(
+              error: error,
+              onRetry: () => ref.read(transactionProvider.notifier).sync(),
+            ),
+            data: (_) => RefreshIndicator(
           color: AppTheme.gold,
           onRefresh: () => ref.read(transactionProvider.notifier).sync(),
           child: ListView(
@@ -211,6 +210,18 @@ class DashboardScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+          if (txnState.isLoading)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: LoadingAnimationWidget.threeRotatingDots(
+                  color: AppTheme.gold,
+                  size: 64,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -58,11 +58,17 @@ class MerchantCategories {
     'Pharmacies & Health',
     'Hotels & Travel',
     'Entertainment',
+    'Books & Media',
+    'Sporting Goods',
+    'Gifts & Flowers',
     'Stationery & Office',
+    'Construction & Renovation',
+    'Home & Garden',
+    'Pets & Veterinary',
+    'Beauty & Personal Care',
+    'Wholesale & B2B',
     'Utilities & Telecom',
     'Auto & Vehicles',
-    'Beauty & Personal Care',
-    'Home & Garden',
     'Education',
     'Finance & Insurance',
     'Government & Taxes',
@@ -79,10 +85,13 @@ class MerchantCategories {
     if (mcc == null) return null;
 
     return switch (mcc) {
-      // ── Agriculture & Veterinary ─────────────────────────────────
-      742 || 763 || 780 => 'Other',
+      // ── Veterinary ────────────────────────────────────────────────
+      742 => 'Pets & Veterinary',
 
-      // ── Construction ─────────────────────────────────────────────
+      // ── Agriculture & Landscape ───────────────────────────────────
+      763 || 780 => 'Other',
+
+      // ── Construction & Renovation ─────────────────────────────────
       1520 ||
       1711 ||
       1731 ||
@@ -90,7 +99,7 @@ class MerchantCategories {
       1750 ||
       1761 ||
       1771 ||
-      1799 => 'Home & Garden',
+      1799 => 'Construction & Renovation',
 
       // ── Publishing ───────────────────────────────────────────────
       2741 || 2791 || 2842 => 'Stationery & Office',
@@ -146,7 +155,11 @@ class MerchantCategories {
       5065 ||
       5072 ||
       5074 ||
-      5085 => 'Other',
+      5085 ||
+      5099 ||
+      5169 ||
+      5199 ||
+      5300 => 'Wholesale & B2B',
 
       // ── Jewelry & Watches ────────────────────────────────────────
       5094 || 5944 => 'Clothing & Accessories',
@@ -164,12 +177,11 @@ class MerchantCategories {
       5172 || 5983 => 'Gas Stations',
 
       // ── Books & Periodicals ──────────────────────────────────────
-      5192 || 5942 || 5994 => 'Entertainment',
+      5192 || 5942 || 5994 => 'Books & Media',
 
       // ── Home & Garden wholesale/retail ───────────────────────────
       5193 ||
       5198 ||
-      5199 ||
       5200 ||
       5211 ||
       5231 ||
@@ -185,7 +197,6 @@ class MerchantCategories {
       5271 ||
       5297 ||
       5298 ||
-      5300 ||
       5309 ||
       5310 ||
       5311 ||
@@ -246,15 +257,22 @@ class MerchantCategories {
       // ── Fast Food ────────────────────────────────────────────────
       5814 => 'Fast Food',
 
-      // ── Liquor, Tobacco, misc food ───────────────────────────────
-      5715 || 5718 || 5921 || 5993 => 'Other',
+      // ── Alcohol wholesale ────────────────────────────────────────
+      5715 => 'Wholesale & B2B',
+
+      // ── Home misc ─────────────────────────────────────────────────
+      5718 => 'Home & Garden',
+
+      // ── Liquor stores & Tobacco ───────────────────────────────────
+      5921 || 5993 => 'Other',
 
       // ── Second-hand & Pawn ───────────────────────────────────────
       5931 || 5932 || 5933 || 5935 || 5937 => 'Other',
 
-      // ── Sports, Hobbies, Arts ────────────────────────────────────
-      5940 ||
-      5941 ||
+      // ── Sporting Goods ───────────────────────────────────────────
+      5940 || 5941 => 'Sporting Goods',
+
+      // ── Hobbies, Toys & Arts ──────────────────────────────────────
       5945 ||
       5946 ||
       5949 ||
@@ -265,7 +283,7 @@ class MerchantCategories {
       5973 => 'Entertainment',
 
       // ── Gifts & Flowers ──────────────────────────────────────────
-      5947 || 5992 => 'Other',
+      5947 || 5992 => 'Gifts & Flowers',
 
       // ── Leather & Travel Goods ───────────────────────────────────
       5948 => 'Clothing & Accessories',
@@ -288,8 +306,11 @@ class MerchantCategories {
       // ── Cosmetics ────────────────────────────────────────────────
       5977 => 'Beauty & Personal Care',
 
+      // ── Pet Stores ───────────────────────────────────────────────
+      5995 => 'Pets & Veterinary',
+
       // ── Other Retail ─────────────────────────────────────────────
-      5978 || 5995 || 5996 || 5997 || 5998 || 5999 => 'Other',
+      5978 || 5996 || 5997 || 5998 || 5999 => 'Other',
 
       // ── Finance ──────────────────────────────────────────────────
       6009 ||
@@ -395,7 +416,7 @@ class MerchantCategories {
       8099 => 'Pharmacies & Health',
 
       // ── Legal ────────────────────────────────────────────────────
-      8111 => 'Other',
+      8111 => 'Finance & Insurance',
 
       // ── Education ────────────────────────────────────────────────
       8211 || 8220 || 8241 || 8244 || 8249 || 8299 || 8351 => 'Education',
