@@ -103,7 +103,7 @@ class DailyBarChart extends StatelessWidget {
                   ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
-                      showTitles: true,
+                      showTitles: entries.length <= 60,
                       reservedSize: 30,
                       interval: entries.length > 15 ? 5 : 1,
                       getTitlesWidget: (value, meta) {
