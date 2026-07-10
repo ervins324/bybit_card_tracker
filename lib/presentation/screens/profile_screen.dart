@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:bybit_card_tracker/core/theme/app_theme.dart';
 import 'package:bybit_card_tracker/presentation/providers/profile_provider.dart';
+import 'package:bybit_card_tracker/presentation/providers/settings_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -10,7 +11,15 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileState = ref.watch(profileProvider);
+    final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
+
+    // Only show UAH conversions when toggle is on
+    String? uahLine(double usd) {
+      if (!settings.showInUah) return null;
+      final uah = usd * settings.exchangeRate;
+      return '~ ${uah.toStringAsFixed(2)} UAH';
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -52,7 +61,9 @@ class ProfileScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               _buildCard('Current Tier', profile.tierDisplayName, Icons.star_rounded),
-              _buildCard('Monthly Points Used', '${profile.usedLimit} / ${profile.limit} ${profile.unit}', Icons.card_giftcard_rounded),
+              _buildCard('Monthly Points Used', '${profile.usedLimit.toStringAsFixed(0)} / ${profile.limit.toStringAsFixed(0)} ${profile.unit}', Icons.card_giftcard_rounded,
+                extraSubtitle: uahLine(profile.usedLimit),
+              ),
               _buildCard('Auto Cashback', profile.autoCashback ? 'Enabled' : 'Disabled', Icons.autorenew_rounded),
               
               const SizedBox(height: 24),
@@ -64,8 +75,12 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildCard('USDT Wallet Balance', '${profile.usdtWalletBalance.toStringAsFixed(2)} USDT', Icons.account_balance_wallet_rounded),
-              _buildCard('USDT Transfer Balance', '${profile.usdtTransferBalance.toStringAsFixed(2)} USDT', Icons.swap_horiz_rounded),
+              _buildCard('USDT Wallet Balance', '${profile.usdtWalletBalance.toStringAsFixed(2)} USDT', Icons.account_balance_wallet_rounded,
+                extraSubtitle: uahLine(profile.usdtWalletBalance),
+              ),
+              _buildCard('USDT Transfer Balance', '${profile.usdtTransferBalance.toStringAsFixed(2)} USDT', Icons.swap_horiz_rounded,
+                extraSubtitle: uahLine(profile.usdtTransferBalance),
+              ),
             ],
           ),
         ),
@@ -73,7 +88,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCard(String title, String value, IconData icon) {
+  Widget _buildCard(String title, String value, IconData icon, {String? extraSubtitle}) {
     return Card(
       color: AppTheme.cardColor,
       margin: const EdgeInsets.only(bottom: 12),
@@ -100,16 +115,32 @@ class ProfileScreen extends ConsumerWidget {
               fontSize: 13,
             ),
           ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              value, 
-              style: const TextStyle(
-                fontWeight: FontWeight.bold, 
-                fontSize: 16,
-                color: Colors.white,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  value, 
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-            ),
+              if (extraSubtitle != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    extraSubtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.gold.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
