@@ -142,42 +142,38 @@ class TransactionTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDeclined
-                                  ? AppTheme.red.withValues(alpha: 0.08)
-                                  : AppTheme.gold.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              isDeclined ? 'DECLINED' : transaction.category,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDeclined
-                                    ? AppTheme.red
-                                    : AppTheme.gold,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDeclined
+                              ? AppTheme.red.withValues(alpha: 0.08)
+                              : AppTheme.gold.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isDeclined ? 'DECLINED' : transaction.category,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isDeclined
+                                ? AppTheme.red
+                                : AppTheme.gold,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '$dateStr  $timeStr',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontSize: 10,
-                              color: isDeclined
-                                  ? theme.textTheme.bodySmall?.color
-                                        ?.withValues(alpha: 0.6)
-                                  : null,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$dateStr  $timeStr',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 10,
+                          color: isDeclined
+                              ? theme.textTheme.bodySmall?.color
+                                    ?.withValues(alpha: 0.6)
+                              : null,
+                        ),
                       ),
                     ],
                   ),
