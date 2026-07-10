@@ -69,11 +69,6 @@ class TransactionNotifier extends AsyncNotifier<List<TransactionEntity>> {
         apiKey: credentials.apiKey,
         apiSecret: credentials.apiSecret,
         baseUrl: credentials.baseUrl,
-        onProgress: (partials) async {
-          // Immediately read updated cache and yield progressive state
-          final updatedCache = await repo.getCachedTransactions();
-          state = AsyncData(updatedCache);
-        },
       );
       state = AsyncData(transactions);
     } catch (e, st) {
