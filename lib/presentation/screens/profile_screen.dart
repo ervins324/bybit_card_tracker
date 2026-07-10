@@ -51,7 +51,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildCard('Current Tier', profile.tier.toUpperCase(), Icons.star_rounded),
+              _buildCard('Current Tier', profile.tierDisplayName, Icons.star_rounded),
               _buildCard('Monthly Points Used', '${profile.usedLimit} / ${profile.limit} ${profile.unit}', Icons.card_giftcard_rounded),
               _buildCard('Auto Cashback', profile.autoCashback ? 'Enabled' : 'Disabled', Icons.autorenew_rounded),
               
