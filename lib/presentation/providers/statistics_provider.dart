@@ -96,28 +96,28 @@ final monthlySpendProvider = Provider<Map<String, double>>((ref) {
   );
 });
 
-/// Daily spending breakdown for the selected period.
-final dailySpendProvider = Provider<Map<String, double>>((ref) {
+/// Daily spending breakdown by category for the selected period.
+final dailySpendProvider = Provider<Map<String, Map<String, double>>>((ref) {
   final txns = ref.watch(cardTransactionsProvider);
   final settings = ref.watch(settingsProvider);
   final period = ref.watch(selectedPeriodProvider);
-  
-  final map = <String, double>{};
+
+  final map = <String, Map<String, double>>{};
   final formatter = DateFormat('dd MMM');
   for (final tx in txns) {
     if (!tx.isPurchase || !period.contains(tx.dateTime)) continue;
-    final key = formatter.format(tx.dateTime);
+    final dateKey = formatter.format(tx.dateTime);
     final value = tx
         .effectiveDisplayAmount(
           showInUah: settings.showInUah,
           rate: settings.exchangeRate,
         )
         .abs();
-    map[key] = (map[key] ?? 0) + value;
+    map.putIfAbsent(dateKey, () => {});
+    map[dateKey]![tx.category] = (map[dateKey]![tx.category] ?? 0) + value;
   }
-  return Map.fromEntries(
-    map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
-  );
+  final sorted = map.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+  return Map.fromEntries(sorted);
 });
 
 /// Total card transaction count.
