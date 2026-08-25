@@ -25,39 +25,36 @@ class TransactionRepositoryImpl implements TransactionRepository {
       apiKey: apiKey,
       apiSecret: apiSecret,
       baseUrl: baseUrl,
-      onPageFetched: (models) async {
-        await localDatasource.cacheTransactions(models);
-        onProgress?.call(models.map((m) => m.toEntity()).toList());
-      },
     );
     await Future.delayed(const Duration(seconds: 1));
     final pointRecords = await remoteDatasource.fetchAllRewardPoints(
       apiKey: apiKey,
       apiSecret: apiSecret,
       baseUrl: baseUrl,
-      onPageFetched: (models) async {
-        // Here we cache the raw models as they come in.
-        // We will filter out duplicates from asset records below,
-        // but it's safe to cache them temporarily since the keys will match
-        // or be distinct and get handled on query.
-        await localDatasource.cacheTransactions(models);
-        onProgress?.call(models.map((m) => m.toEntity()).toList());
-      },
     );
 
     final assetIds = assetRecords.map((asset) => asset.txnId).toSet();
-    final filteredPointRecords = pointRecords.where((pointRecord) {
-      if (assetIds.contains(pointRecord.txnId)) return false;
-      final isRefund = pointRecord.isRefundRecord;
-      final amountStr =
-          pointRecord.basicAmount ?? pointRecord.transactionAmount ?? '';
-      final double amount = double.tryParse(amountStr) ?? 0.0;
-      final isPureBonus = pointRecord.point != null && amount == 0.0;
-      return isRefund || isPureBonus;
+    final assetOrderNos = assetRecords
+        .map((asset) => asset.orderNo)
+        .where((o) => o != null && o.isNotEmpty)
+        .toSet();
+
+    final deduplicatedPointRecords = pointRecords.where((pointRecord) {
+      final cleanId = pointRecord.txnId.startsWith('rp_')
+          ? pointRecord.txnId.substring(3)
+          : pointRecord.txnId;
+      if (pointRecord.isRefundRecord &&
+          (assetIds.contains(pointRecord.txnId) ||
+              assetIds.contains(cleanId) ||
+              (pointRecord.orderNo != null &&
+                  assetOrderNos.contains(pointRecord.orderNo)))) {
+        return false;
+      }
+      return true;
     }).toList();
 
-    final finalModels = [...assetRecords, ...filteredPointRecords];
-    await localDatasource.cacheTransactions(finalModels);
+    final finalModels = [...assetRecords, ...deduplicatedPointRecords];
+    await localDatasource.replaceCache(finalModels);
     return finalModels.map((m) => m.toEntity()).toList()
       ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
   }

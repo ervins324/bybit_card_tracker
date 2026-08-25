@@ -6,12 +6,16 @@ class BonusTypes {
   static bool isRewardsHub({String? rewardType, String? rewardSubType}) =>
       rewardType == '5' && rewardSubType == '3';
 
-  /// Merchant refund — points clawed back (type 1 / subType 2).
+  /// Merchant refund — points clawed back (type 1 / subType 2, or refund types).
   static bool isRefund({
     required String? rewardType,
     required String? rewardSubType,
   }) =>
-      rewardType == '1' && rewardSubType == '2';
+      (rewardType == '1' && rewardSubType == '2') ||
+      rewardType == '2' ||
+      rewardSubType == '2' ||
+      rewardType?.toUpperCase() == 'REFUND' ||
+      rewardSubType?.toUpperCase() == 'REFUND';
 
   /// Card purchase with cashback (type 1 / subType 1, points earned).
   static bool isPurchase({

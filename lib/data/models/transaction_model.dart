@@ -112,27 +112,47 @@ class TransactionModel {
   double get _spendAmount =>
       double.tryParse(basicAmount ?? transactionAmount ?? '') ?? 0.0;
 
-  bool get isCardPurchase => BonusTypes.isCardTransaction(
-    rewardType: rewardType,
-    rewardSubType: rewardSubType,
-    merchName: merchName,
-    spendAmount: _spendAmount,
-  );
-
   bool get isRefundRecord =>
-      BonusTypes.isRefund(rewardType: rewardType, rewardSubType: rewardSubType);
+      BonusTypes.isRefund(
+        rewardType: rewardType,
+        rewardSubType: rewardSubType,
+      ) ||
+      rewardType?.toUpperCase() == 'REFUND' ||
+      rewardSubType?.toUpperCase() == 'REFUND' ||
+      side == '4' ||
+      side == '5' ||
+      side == '8' ||
+      side == '10' ||
+      side == '11';
+
+  bool get isBonus =>
+      (point != null ||
+          rewardSide != null ||
+          rewardType != null ||
+          rewardSubType != null ||
+          txnId.startsWith('rp_')) &&
+      !isRefundRecord;
+
+  bool get isCardPurchase => !isBonus;
 
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
     final isRewardRecord =
         json.containsKey('point') ||
+        json.containsKey('rewardType') ||
+        json.containsKey('type') ||
+        json.containsKey('subType') ||
         (json.containsKey('transactionId') && !json.containsKey('txnId'));
 
-    final txnId =
+    String txnId =
         json['txnId']?.toString() ??
         json['transactionId']?.toString() ??
         json['bizTxnId']?.toString() ??
         json['bizId']?.toString() ??
         '';
+
+    if (isRewardRecord && txnId.isNotEmpty && !txnId.startsWith('rp_')) {
+      txnId = 'rp_$txnId';
+    }
 
     final rewardSide = isRewardRecord ? json['side']?.toString() : null;
 

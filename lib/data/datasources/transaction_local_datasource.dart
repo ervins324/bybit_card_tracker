@@ -14,6 +14,40 @@ class TransactionLocalDatasource {
     return Hive.openBox<Map>(_boxName);
   }
 
+  /// Replaces the entire cache with the fresh list of transactions,
+  /// preserving user overrides (customCategory and conversionMode) and clearing stale entries.
+  Future<void> replaceCache(List<TransactionModel> transactions) async {
+    final box = await _openBox();
+    final overrides = <String, Map<String, dynamic>>{};
+    for (final key in box.keys) {
+      final val = box.get(key);
+      if (val is Map) {
+        if (val['customCategory'] != null || val['conversionMode'] != null) {
+          overrides[key.toString()] = {
+            if (val['customCategory'] != null)
+              'customCategory': val['customCategory'],
+            if (val['conversionMode'] != null)
+              'conversionMode': val['conversionMode'],
+          };
+        }
+      }
+    }
+    await box.clear();
+    for (final tx in transactions) {
+      final map = tx.toMap();
+      final override = overrides[tx.txnId];
+      if (override != null) {
+        if (override['customCategory'] != null) {
+          map['customCategory'] = override['customCategory'];
+        }
+        if (override['conversionMode'] != null) {
+          map['conversionMode'] = override['conversionMode'];
+        }
+      }
+      await box.put(tx.txnId, map);
+    }
+  }
+
   /// Saves transactions, preserving user overrides such as [customCategory] and [conversionMode].
   Future<void> cacheTransactions(List<TransactionModel> transactions) async {
     final box = await _openBox();
